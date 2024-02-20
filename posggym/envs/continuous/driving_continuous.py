@@ -542,7 +542,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 avail_dest_coords.remove(start_coord)
 
             body_state = np.zeros((PMBodyState.num_features()), dtype=np.float32)
-            body_state[:2] = start_coord
+            body_state[[X_IDX, Y_IDX]] = start_coord
 
             _dest_coord = self.rng.choice(list(avail_dest_coords))
             chosen_dest_coords.add(_dest_coord)
@@ -633,7 +633,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 global_force=global_force,
             )
 
-        self.world.simulate(1.0 / 10, 10)
+        self.world.simulate(1.0 / 40, 40)
 
         collision_types = [CollisionType.NONE] * len(self.possible_agents)
         new_state: List[Optional[VehicleState]] = [None] * len(self.possible_agents)
