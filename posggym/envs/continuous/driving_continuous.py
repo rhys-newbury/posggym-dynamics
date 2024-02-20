@@ -818,10 +818,7 @@ class DrivingWorld(SquareContinuousWorld):
         """Get the shortest path distance from coord to destination."""
         coord_c = self.convert_to_coord(coord)
         dest_c = self.convert_to_coord(dest)
-        try:
-            return int(self.shortest_paths[dest_c][coord_c])
-        except KeyError:
-            return max(self.shortest_paths[dest_c].values()) * 100
+        return int(self.shortest_paths[dest_c][coord_c])
 
     def get_max_shortest_path_distance(self) -> int:
         """Get the longest shortest path distance to any destination."""
