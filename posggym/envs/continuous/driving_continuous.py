@@ -593,7 +593,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         for i in range(len(self.possible_agents)):
             friction = self.rng.random()
             elasticity = self.rng.random() * 0.1
-            mass = self.rng.random() * 10
+            mass = 0.5 + self.rng.random() * 10
             self.world.change_entity_dynamics(
                 f"vehicle_{i}", friction=friction, mass=mass, elasticity=elasticity
             )
