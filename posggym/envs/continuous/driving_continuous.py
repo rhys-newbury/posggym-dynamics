@@ -219,7 +219,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
 
     def __init__(
         self,
-        world: Union[str, "DrivingWorld"] = "14x14RoundAbout",
+        world: Union[str, "DrivingWorld"] = "14x14Empty",
         num_agents: int = 2,
         obs_dist: float = 5.0,
         n_sensors: int = 16,
@@ -227,6 +227,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
         should_randomze_dyn: bool = False,
     ):
+        print(world)
         if isinstance(control_type, str):
             try:
                 control_type = ControlType[control_type]
@@ -533,18 +534,23 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         for i in range(len(self.possible_agents)):
             start_coords_i = self.world.start_coords[i]
             avail_start_coords = start_coords_i.difference(chosen_start_coords)
-            start_coord = self.rng.choice(list(avail_start_coords))
-            chosen_start_coords.add(start_coord)
+            while True:
+                start_coord = self.rng.choice(list(avail_start_coords))
+                chosen_start_coords.add(start_coord)
 
-            dest_coords_i = self.world.dest_coords[i]
-            avail_dest_coords = dest_coords_i.difference(chosen_dest_coords)
-            if start_coord in avail_dest_coords:
-                avail_dest_coords.remove(start_coord)
+                dest_coords_i = self.world.dest_coords[i]
+                avail_dest_coords = dest_coords_i.difference(chosen_dest_coords)
+                if start_coord in avail_dest_coords:
+                    avail_dest_coords.remove(start_coord)
 
-            body_state = np.zeros((PMBodyState.num_features()), dtype=np.float32)
-            body_state[[X_IDX, Y_IDX]] = start_coord
+                body_state = np.zeros((PMBodyState.num_features()), dtype=np.float32)
+                body_state[[X_IDX, Y_IDX]] = start_coord
 
-            _dest_coord = self.rng.choice(list(avail_dest_coords))
+                _dest_coord = self.rng.choice(list(avail_dest_coords))
+
+                if self.world.euclidean_dist(start_coord, _dest_coord) > 3:
+                    break
+
             chosen_dest_coords.add(_dest_coord)
             dest_coord = np.array(_dest_coord, dtype=np.float32)
 
@@ -1034,20 +1040,20 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
     },
     "14x14Empty": {
         "world_str": (
-            ".-..........-.\n"
-            "-............+\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "..............\n"
-            "-............+\n"
-            ".+..........+.\n"
+            ".-------------\n"
+            "-------------+\n"
+            "--------------\n"
+            "--------------\n"
+            "--------------\n"
+            "--------------\n"
+            "--------------\n"
+            "--------------\n"
+            "++++++++++++++\n"
+            "++++++++++++++\n"
+            "++++++++++++++\n"
+            "++++++++++++++\n"
+            "-+++++++++++++\n"
+            "++++++++++++++\n"
         ),
         "supported_num_agents": 4,
         "max_episode_steps": 100,
