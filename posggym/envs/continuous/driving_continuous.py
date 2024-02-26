@@ -227,7 +227,6 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
         should_randomze_dyn: bool = False,
     ):
-        print(world)
         if isinstance(control_type, str):
             try:
                 control_type = ControlType[control_type]
