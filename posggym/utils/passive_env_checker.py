@@ -478,7 +478,9 @@ def _check_agent_dict(
         f"Actual type: {type(agent_dict)}."
     )
     for i in agent_dict:
-        assert i in possible_agents, (
+        assert (i in possible_agents and isinstance(i, dict)) or (
+            not isinstance(i, dict)
+        ), (
             f"Agent {dict_type} dictionary must only contain valid agent IDs: "
             f"invalid ID `{i}`."
         )

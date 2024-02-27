@@ -257,16 +257,24 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 f'e.g. posggym.make("{self.spec.id}", render_mode="rgb_array")'
             )
             return
-        return self._render_img()
+        return self.render_img()
 
-    def _render_img(self):
+    def render_img(
+        self,
+        render_lines=True,
+        render_agents=True,
+        render_goals=True,
+        render_blocks=True,
+        window_size=None,
+    ):
         # import posggym.envs.continuous.render as render_lib
         import pygame
         from pymunk import Transform, pygame_util
 
         model = cast(DrivingContinuousModel, self.model)
         state = cast(DState, self.state)
-        scale_factor = self.window_size / model.world.size
+        window_size = window_size if window_size is not None else self.window_size
+        scale_factor = window_size / model.world.size
 
         if self.window_surface is None:
             pygame.init()
@@ -274,12 +282,10 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 pygame.display.init()
                 pygame.display.set_caption(self.__class__.__name__)
                 self.window_surface = pygame.display.set_mode(
-                    (self.window_size, self.window_size)
+                    (window_size, window_size)
                 )
             else:
-                self.window_surface = pygame.Surface(
-                    (self.window_size, self.window_size)
-                )
+                self.window_surface = pygame.Surface((window_size, window_size))
             # Turn off alpha since we don't use it.
             self.window_surface.set_alpha(None)
 
@@ -296,13 +302,13 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 | pygame_util.DrawOptions.DRAW_CONSTRAINTS
             )
 
-        if self.world is None:
-            # get copy of model world, so we can use it for rendering without
-            # affecting the original
-            self.world = model.world.copy()
+        # if self.world is None:
+        # get copy of model world, so we can use it for rendering without
+        # affecting the original
+        self.world = model.world.copy()
 
-        if self.blocked_surface is None:
-            self.blocked_surface = pygame.Surface((self.window_size, self.window_size))
+        if self.blocked_surface is None and render_blocks:
+            self.blocked_surface = pygame.Surface((window_size, window_size))
             self.blocked_surface.fill(pygame.Color("white"))
             cell_size = scale_factor
             for coord in self.world.blocked_coords:
@@ -317,6 +323,15 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         for i, v_state in enumerate(state):
             self.world.set_entity_state(f"vehicle_{i}", v_state.body)
 
+        # print(self.world.space.shapes)
+        walls_to_remove = [
+            x
+            for x in self.world.space.shapes
+            if x._body == self.world.space.static_body
+        ]
+        for w in walls_to_remove:
+            self.world.space.remove(w)
+
         # Need to do this for space to update with changes
         self.world.space.step(0.0001)
 
@@ -324,59 +339,62 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         self.window_surface.fill(pygame.Color("white"))
 
         # add blocks
-        self.window_surface.blit(self.blocked_surface, (0, 0))
+        if self.blocked_surface is not None and render_blocks:
+            self.window_surface.blit(self.blocked_surface, (0, 0))
 
         lines_colors = ["red", "green", "black"]
         # draw sensor lines
-        n_sensors = model.n_sensors
-        for i, obs_i in self._last_obs.items():
-            line_obs = obs_i[: model.sensor_obs_dim]
-            x, y, agent_angle = (
-                state[int(i)].body[X_IDX],
-                state[int(i)].body[Y_IDX],
-                state[int(i)].body[ANGLE_IDX],
-            )
-            angle_inc = 2 * math.pi / n_sensors
-            for k in range(n_sensors):
-                values = [
-                    line_obs[k],
-                    line_obs[n_sensors + k],
-                ]
-                dist_idx = min(range(len(values)), key=values.__getitem__)
-                dist = values[dist_idx]
-                dist_idx = len(values) if dist == model.obs_dist else dist_idx
 
-                angle = angle_inc * k + agent_angle
-                end_x = x + dist * math.cos(angle)
-                end_y = y + dist * math.sin(angle)
-                scaled_start = (int(x * scale_factor), int(y * scale_factor))
-                scaled_end = int(end_x * scale_factor), (end_y * scale_factor)
+        if render_lines:
+            n_sensors = model.n_sensors
+            for i, obs_i in self._last_obs.items():
+                line_obs = obs_i[: model.sensor_obs_dim]
+                x, y, agent_angle = (
+                    state[int(i)].body[X_IDX],
+                    state[int(i)].body[Y_IDX],
+                    state[int(i)].body[ANGLE_IDX],
+                )
+                angle_inc = 2 * math.pi / n_sensors
+                for k in range(n_sensors):
+                    values = [
+                        line_obs[k],
+                        line_obs[n_sensors + k],
+                    ]
+                    dist_idx = min(range(len(values)), key=values.__getitem__)
+                    dist = values[dist_idx]
+                    dist_idx = len(values) if dist == model.obs_dist else dist_idx
 
-                pygame.draw.line(
+                    angle = angle_inc * k + agent_angle
+                    end_x = x + dist * math.cos(angle)
+                    end_y = y + dist * math.sin(angle)
+                    scaled_start = (int(x * scale_factor), int(y * scale_factor))
+                    scaled_end = int(end_x * scale_factor), (end_y * scale_factor)
+
+                    pygame.draw.line(
+                        self.window_surface,
+                        pygame.Color(lines_colors[dist_idx]),
+                        scaled_start,
+                        scaled_end,
+                    )
+        if render_goals:
+            for i, v in enumerate(state):
+                x, y = v.dest_coord[:2]
+                scaled_center = (int(x * scale_factor), int(y * scale_factor))
+                scaled_r = int(model.world.agent_radius * scale_factor)
+                pygame.draw.circle(
                     self.window_surface,
-                    pygame.Color(lines_colors[dist_idx]),
-                    scaled_start,
-                    scaled_end,
+                    AGENT_COLORS[i][1],
+                    scaled_center,
+                    scaled_r,
                 )
 
-        for i, v in enumerate(state):
-            x, y = v.dest_coord[:2]
-            scaled_center = (int(x * scale_factor), int(y * scale_factor))
-            scaled_r = int(model.world.agent_radius * scale_factor)
-            pygame.draw.circle(
-                self.window_surface,
-                AGENT_COLORS[i][1],
-                scaled_center,
-                scaled_r,
-            )
-
-        self.world.space.debug_draw(self.draw_options)
+        if render_agents:
+            self.world.space.debug_draw(self.draw_options)
 
         if self.render_mode == "human":
             pygame.event.pump()
             pygame.display.update()
             self.clock.tick(self.metadata["render_fps"])
-            return None
 
         return np.transpose(
             np.array(pygame.surfarray.pixels3d(self.window_surface)), axes=(1, 0, 2)
@@ -546,9 +564,10 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 body_state[[X_IDX, Y_IDX]] = start_coord
 
                 _dest_coord = self.rng.choice(list(avail_dest_coords))
+                break
 
-                if self.world.euclidean_dist(start_coord, _dest_coord) > 3:
-                    break
+                # if self.world.euclidean_dist(start_coord, _dest_coord) > 3:
+                #     break
 
             chosen_dest_coords.add(_dest_coord)
             dest_coord = np.array(_dest_coord, dtype=np.float32)
@@ -589,6 +608,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             else:
                 outcome_i = M.Outcome.NA
             info[str(idx)]["outcome"] = outcome_i
+
+        info["n_robots"] = len(self.possible_agents)
+        info["n_targets"] = len(self.possible_agents)
 
         return M.JointTimestep(
             next_state, obs, rewards, terminated, truncated, all_done, info
