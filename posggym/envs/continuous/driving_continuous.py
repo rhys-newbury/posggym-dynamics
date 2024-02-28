@@ -323,14 +323,13 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         for i, v_state in enumerate(state):
             self.world.set_entity_state(f"vehicle_{i}", v_state.body)
 
-        # print(self.world.space.shapes)
-        walls_to_remove = [
-            x
-            for x in self.world.space.shapes
-            if x._body == self.world.space.static_body
-        ]
-        for w in walls_to_remove:
-            self.world.space.remove(w)
+        # walls_to_remove = [
+        #     x
+        #     for x in self.world.space.shapes
+        #     if x._body == self.world.space.static_body
+        # ]
+        # for w in walls_to_remove:
+        #     self.world.space.remove(w)
 
         # Need to do this for space to update with changes
         self.world.space.step(0.0001)
@@ -763,8 +762,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs[d] = self.world.convert_angle_to_0_2pi_interval(state_i.body[ANGLE_IDX])
         obs[d + 1] = clamp(state_i.body[VX_IDX], -1.0, 1.0)
         obs[d + 2] = clamp(state_i.body[VY_IDX], -1.0, 1.0)
-        obs[d + 3] = abs(state_i.dest_coord[X_IDX] - pos_i[X_IDX])
-        obs[d + 4] = abs(state_i.dest_coord[Y_IDX] - pos_i[Y_IDX])
+        obs[d + 3] = state_i.dest_coord[X_IDX] - pos_i[X_IDX]
+        obs[d + 4] = state_i.dest_coord[Y_IDX] - pos_i[Y_IDX]
 
         return obs
 
