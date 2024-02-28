@@ -323,13 +323,13 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         for i, v_state in enumerate(state):
             self.world.set_entity_state(f"vehicle_{i}", v_state.body)
 
-        # walls_to_remove = [
-        #     x
-        #     for x in self.world.space.shapes
-        #     if x._body == self.world.space.static_body
-        # ]
-        # for w in walls_to_remove:
-        #     self.world.space.remove(w)
+        walls_to_remove = [
+            x
+            for x in self.world.space.shapes
+            if x._body == self.world.space.static_body
+        ]
+        for w in walls_to_remove:
+            self.world.space.remove(w)
 
         # Need to do this for space to update with changes
         self.world.space.step(0.0001)
