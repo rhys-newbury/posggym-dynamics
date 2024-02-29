@@ -1075,7 +1075,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "-+++++++++++++\n"
             "++++++++++++++\n"
         ),
-        "supported_num_agents": 4,
+        "supported_num_agents": 8,
         "max_episode_steps": 100,
     },
 }
