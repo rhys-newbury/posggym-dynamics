@@ -509,7 +509,15 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.observation_spaces = {
             i: spaces.Box(
                 low=np.array(
-                    [*sensor_low, -2 * math.pi, -1, -1, 0, 0], dtype=np.float32
+                    [
+                        *sensor_low,
+                        -2 * math.pi,
+                        -1,
+                        -1,
+                        -self.world.size,
+                        -self.world.size,
+                    ],
+                    dtype=np.float32,
                 ),
                 high=np.array(
                     [*sensor_high, 2 * math.pi, 1, 1, self.world.size, self.world.size],

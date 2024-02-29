@@ -471,8 +471,8 @@ class Wrapper(Env[WrapperStateType, WrapperObsType, WrapperActType]):
 
     def __getattr__(self, name):
         """Returns attribute with ``name``, unless ``name`` starts with underscore."""
-        if name.startswith("_"):
-            raise AttributeError(f"attempted to get missing private attribute '{name}'")
+        # if name.startswith("_"):
+        # raise AttributeError(f"attempted to get missing private attribute '{name}'")
         return getattr(self.env, name)
 
     @classmethod
