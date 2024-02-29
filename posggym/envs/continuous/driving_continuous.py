@@ -492,7 +492,15 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.observation_spaces = {
             i: spaces.Box(
                 low=np.array(
-                    [*sensor_low, -2 * math.pi, -1, -1, 0, 0], dtype=np.float32
+                    [
+                        *sensor_low,
+                        -2 * math.pi,
+                        -1,
+                        -1,
+                        -self.world.size,
+                        -self.world.size,
+                    ],
+                    dtype=np.float32,
                 ),
                 high=np.array(
                     [*sensor_high, 2 * math.pi, 1, 1, self.world.size, self.world.size],
@@ -741,8 +749,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs[d] = self.world.convert_angle_to_0_2pi_interval(state_i.body[ANGLE_IDX])
         obs[d + 1] = clamp(state_i.body[VX_IDX], -1.0, 1.0)
         obs[d + 2] = clamp(state_i.body[VY_IDX], -1.0, 1.0)
-        obs[d + 3] = abs(state_i.dest_coord[X_IDX] - pos_i[X_IDX])
-        obs[d + 4] = abs(state_i.dest_coord[Y_IDX] - pos_i[Y_IDX])
+        obs[d + 3] = state_i.dest_coord[X_IDX] - pos_i[X_IDX]
+        obs[d + 4] = state_i.dest_coord[Y_IDX] - pos_i[Y_IDX]
 
         return obs
 
