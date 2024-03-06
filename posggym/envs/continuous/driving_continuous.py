@@ -388,6 +388,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
 
             pygame.display.quit()
             pygame.quit()
+            self.window_surface = None
 
 
 class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
@@ -666,7 +667,18 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
             state_i = state[idx]
             next_v_coords = next_v_body_state[[X_IDX, Y_IDX]]
-            dest_distance = np.linalg.norm(state_i.dest_coord - next_v_coords)
+            current_v_coords = state_i.body[[X_IDX, Y_IDX]]
+
+            # Interpolate between start and end, in case it was between states.
+            fractions = np.array([0, 0.2, 0.4, 0.6, 0.8, 1])  # Array of fractions
+            intermediate_vectors = (
+                current_v_coords[:, np.newaxis]
+                + (next_v_coords - current_v_coords)[:, np.newaxis] * fractions
+            ).T
+            dest_distance = np.linalg.norm(
+                state_i.dest_coord - intermediate_vectors, axis=1
+            )
+
             crashed = False
 
             for other_idx, other_v_state in enumerate(new_state):
@@ -698,7 +710,10 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 body=next_v_body_state,
                 dest_coord=state_i.dest_coord,
                 status=np.array(
-                    [int(dest_distance <= self.world.agent_radius), int(crashed)],
+                    [
+                        int((dest_distance <= self.world.agent_radius).any()),
+                        int(crashed),
+                    ],
                     dtype=np.int8,
                 ),
                 min_dest_dist=np.array([min_dest_dist], dtype=np.float32),
@@ -1063,6 +1078,6 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "++++++++++++++\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 100,
+        "max_episode_steps": 500,
     },
 }
