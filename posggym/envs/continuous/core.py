@@ -283,6 +283,8 @@ class AbstractContinuousWorld(ABC):
 
         """
         for _ in range(t):
+            # print(self.space.bodies)
+            # print(self.space.bodies)            
             self.space.step(dt)
 
         if normalize_angles:

@@ -226,6 +226,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         render_mode: Optional[str] = None,
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
         should_randomze_dyn: bool = False,
+        distance_punishment : Optional[float] = 0.05,
     ):
         if isinstance(control_type, str):
             try:
@@ -236,7 +237,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
 
         super().__init__(
             DrivingContinuousModel(
-                world, num_agents, obs_dist, n_sensors, control_type
+                world, num_agents, obs_dist, n_sensors, control_type, distance_punishment
             ),
             render_mode=render_mode,
             should_randomze_dyn=should_randomze_dyn,
@@ -419,6 +420,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs_dist: float,
         n_sensors: int,
         control_type: ControlType,
+        distance_punishment : Optional[float] = 0.05,        
     ):
         if isinstance(world, str):
             assert world in SUPPORTED_WORLDS, (
@@ -440,6 +442,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.obs_dist = obs_dist
         self.vehicle_collision_dist = 2.1 * self.world.agent_radius
         self.control_type = control_type
+        self.distance_punishment = distance_punishment
 
         self.possible_agents = tuple(str(i) for i in range(num_agents))
         self.state_space = spaces.Tuple(
@@ -469,7 +472,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.dvel_limit = 0.25
 
         self.fyaw_limit = math.pi
-        self.fvel_limit = 1.0
+        self.fvel_limit = 3.0
 
         self.action_spaces = generate_action_space(
             self.control_type,
@@ -583,7 +586,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
         next_state, collision_types = self._get_next_state(state, clipped_actions)
         obs = self._get_obs(next_state)
-        rewards = self._get_rewards(state, next_state, collision_types)
+        rewards = self._get_rewards(state, next_state, collision_types, obs)
         terminated = {i: any(next_state[int(i)].status) for i in self.possible_agents}
         truncated = {i: False for i in self.possible_agents}
         all_done = all(terminated.values())
@@ -607,9 +610,11 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             friction = self.rng.random()
             elasticity = self.rng.random() * 0.1
             mass = 0.5 + self.rng.random() * 10
+            # print(friction, elasticity, mass)
             self.world.change_entity_dynamics(
                 f"vehicle_{i}", friction=friction, mass=mass, elasticity=elasticity
             )
+        # print(self.world.space.bodies)
 
     def _get_next_state(
         self, state: DState, actions: Dict[str, DAction]
@@ -755,7 +760,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         return obs
 
     def _get_rewards(
-        self, state: DState, next_state: DState, collision_types: List[CollisionType]
+        self, state: DState, next_state: DState, collision_types: List[CollisionType], obs: Dict[str, DObs]
     ) -> Dict[str, float]:
         rewards: Dict[str, float] = {}
         for i in self.possible_agents:
@@ -770,9 +775,12 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 r_i = self.R_DESTINATION_REACHED
             else:
                 r_i = self.R_STEP_COST
-
-            progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
+            visible_other_agents = obs[i][32:64] != 15
+            distances = obs[i][32:64][visible_other_agents].sum()
+            progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]                
             r_i += max(0, progress) * self.R_PROGRESS
+            if self.distance_punishment is not None:
+                r_i -= distances * self.distance_punishment
             rewards[i] = r_i
         return rewards
 
