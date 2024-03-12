@@ -226,7 +226,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         render_mode: Optional[str] = None,
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
         should_randomze_dyn: bool = False,
-        distance_punishment : Optional[float] = 0.05,
+        distance_punishment: Optional[float] = 0.05,
     ):
         if isinstance(control_type, str):
             try:
@@ -237,7 +237,12 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
 
         super().__init__(
             DrivingContinuousModel(
-                world, num_agents, obs_dist, n_sensors, control_type, distance_punishment
+                world,
+                num_agents,
+                obs_dist,
+                n_sensors,
+                control_type,
+                distance_punishment,
             ),
             render_mode=render_mode,
             should_randomze_dyn=should_randomze_dyn,
@@ -411,7 +416,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
     R_STEP_COST = 0.00
     R_CRASH_VEHICLE = -1.0
-    R_DESTINATION_REACHED = 1.0
+    R_DESTINATION_REACHED = 5.0
     R_PROGRESS = 0.05
 
     def __init__(
@@ -421,7 +426,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs_dist: float,
         n_sensors: int,
         control_type: ControlType,
-        distance_punishment : Optional[float] = 0.05,        
+        distance_punishment: Optional[float] = 0.05,
     ):
         if isinstance(world, str):
             assert world in SUPPORTED_WORLDS, (
@@ -775,7 +780,11 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         return obs
 
     def _get_rewards(
-        self, state: DState, next_state: DState, collision_types: List[CollisionType], obs: Dict[str, DObs]
+        self,
+        state: DState,
+        next_state: DState,
+        collision_types: List[CollisionType],
+        obs: Dict[str, DObs],
     ) -> Dict[str, float]:
         rewards: Dict[str, float] = {}
         for i in self.possible_agents:
@@ -792,7 +801,14 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 r_i = self.R_STEP_COST
             visible_other_agents = obs[i][32:64] != 15
             distances = obs[i][32:64][visible_other_agents].sum()
-            progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]                
+            # progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
+            old_dist = np.linalg.norm(
+                state[idx].body[[X_IDX, Y_IDX]] - state[idx].dest_coord
+            )
+            new_dist = np.linalg.norm(
+                next_state[idx].body[[X_IDX, Y_IDX]] - next_state[idx].dest_coord
+            )
+            progress = old_dist - new_dist
             r_i += max(0, progress) * self.R_PROGRESS
             if self.distance_punishment is not None:
                 r_i -= distances * self.distance_punishment
