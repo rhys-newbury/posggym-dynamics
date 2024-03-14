@@ -810,6 +810,10 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             )
             progress = old_dist - new_dist
             r_i += max(0, progress) * self.R_PROGRESS
+
+            velocity_cost: float = np.linalg.norm(state[idx].body[[VX_IDX, VY_IDX]])
+            r_i -= velocity_cost * 0.05
+
             if self.distance_punishment is not None:
                 r_i -= distances * self.distance_punishment
             rewards[i] = r_i
