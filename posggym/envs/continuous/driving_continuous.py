@@ -415,7 +415,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
     """
 
     R_STEP_COST = 0.00
-    R_CRASH_VEHICLE = -1.0
+    R_CRASH_VEHICLE = -20.0
     R_DESTINATION_REACHED = 5.0
     R_PROGRESS = 0.05
 
@@ -563,6 +563,14 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 body_state[[X_IDX, Y_IDX]] = start_coord
 
                 _dest_coord = self.rng.choice(list(avail_dest_coords))
+
+                flag = False
+                for j in chosen_dest_coords:
+                    if self.world.euclidean_dist(_dest_coord, j) < 1.5:
+                        flag = True
+                        break
+                if flag:
+                    continue
 
                 if self.world.euclidean_dist(start_coord, _dest_coord) > 3:
                     break
@@ -812,7 +820,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             r_i += max(0, progress) * self.R_PROGRESS
 
             velocity_cost: float = np.linalg.norm(state[idx].body[[VX_IDX, VY_IDX]])
-            r_i -= velocity_cost * 0.05
+            r_i -= velocity_cost * 0.1
 
             if self.distance_punishment is not None:
                 r_i -= distances * self.distance_punishment
