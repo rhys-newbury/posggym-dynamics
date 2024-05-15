@@ -1,8 +1,9 @@
 """Setup for the posggym package."""
-from pathlib import Path
+
 import shutil
 import tarfile
 import urllib.request
+from pathlib import Path
 
 from setuptools import setup
 from setuptools.command import build_py

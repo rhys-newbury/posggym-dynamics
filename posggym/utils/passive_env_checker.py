@@ -5,6 +5,7 @@ adapted here to ensure compatibility across different gymnasium versions:
 https://github.com/Farama-Foundation/Gymnasium/blob/v0.27.0/gymnasium/utils/passive_env_checker.py
 
 """
+
 import inspect
 import random
 from functools import partial
@@ -24,12 +25,15 @@ def data_equivalence(data_1, data_2) -> bool:
 
     Arguments
     ---------
-    data_1: data structure 1
-    data_2: data structure 2
+    data_1
+        data structure 1
+    data_2
+        data structure 2
 
     Returns
     -------
-    bool: If observation 1 and 2 are equivalent
+    bool
+        If observation 1 and 2 are equivalent
 
     """
     if type(data_1) == type(data_2):
@@ -310,8 +314,10 @@ def check_state(state: M.StateType, model: M.POSGModel):
 
     Arguments
     ---------
-    state: the state to check
-    model: the environment model
+    state
+        the state to check
+    model
+        the environment model
 
     """
     if model.state_space is not None:
@@ -323,9 +329,12 @@ def check_obs(obs, observation_space: spaces.Space, method_name: str):
 
     Arguments
     ---------
-    obs: The observation to check
-    observation_space: The observation space of the observation
-    method_name: The method name that generated the observation
+    obs
+        The observation to check
+    observation_space
+        The observation space of the observation
+    method_name
+        The method name that generated the observation
 
     """
     pre = f"The obs returned by the `{method_name}()` method"
@@ -381,9 +390,12 @@ def check_agent_obs(
 
     Arguments
     ---------
-    obs: The observation for each agent to check
-    observation_spaces: The observation spaces for each agent's observation
-    method_name: The method name that generated the observation
+    obs
+        The observation for each agent to check
+    observation_spaces
+        The observation spaces for each agent's observation
+    method_name
+        The method name that generated the observation
 
     """
     for i, obs_i in obs.items():
@@ -398,8 +410,10 @@ def check_reset_obs(obs: Dict[str, M.ObsType], model: M.POSGModel):
 
     Arguments
     ---------
-    obs: The observation for each agent to check
-    model: The environment model
+    obs
+        The observation for each agent to check
+    model
+        The environment model
 
     """
     assert isinstance(obs, dict), (
@@ -469,7 +483,7 @@ def env_reset_passive_checker(env, **kwargs):
 
 def _check_agent_dict(
     agent_dict,
-    possible_agents: Sequence[str],
+    possible_agents: Optional[Sequence[str]],
     dict_type: str,
     expected_agents: Optional[Sequence[str]] = None,
 ):
@@ -477,11 +491,13 @@ def _check_agent_dict(
         f"Agent {dict_type} dictionary  must be a dictionary mapping agentID to values."
         f"Actual type: {type(agent_dict)}."
     )
-    for i in agent_dict:
-        assert i in possible_agents, (
-            f"Agent {dict_type} dictionary must only contain valid agent IDs: "
-            f"invalid ID `{i}`."
-        )
+    if possible_agents is not None:
+        for i in agent_dict:
+            assert i in possible_agents, (
+                f"Agent {dict_type} dictionary must only contain valid agent IDs: "
+                f"invalid ID `{i}`."
+            )
+
     if expected_agents is not None:
         for i in expected_agents:
             assert (
@@ -518,7 +534,8 @@ def model_step_passive_checker(
     _check_agent_dict(truncated, model.possible_agents, "truncated", step_agents)
     # Less strict on checking there are entries for all agents in info values
     # as these are not functionally critical and are more for record keeping
-    _check_agent_dict(info, model.possible_agents, "info")
+    # Also less strict on possible agents and allow extra information in the dictionary.
+    _check_agent_dict(info, None, "info", None)
 
     check_state(next_state, model)
     check_agent_obs(obs, model.observation_spaces, "step")
