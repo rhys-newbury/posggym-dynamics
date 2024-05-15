@@ -599,13 +599,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self.world.set_entity_state("pursuer", state.pursuer_state)
         self.world.set_entity_state("evader", state.evader_state)
 
-        (
-            v_angle,
-            vel,
-            torque,
-            local_force,
-            global_force,
-        ) = self.world.compute_vel_force(
+        result = self.world.compute_vel_force(
             ControlType.VelocityNonHolonomoic,
             state.pursuer_state[ANGLE_IDX],
             current_vel=None,
@@ -613,22 +607,9 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             vel_limit_norm=None,
         )
 
-        self.world.update_entity_state(
-            "pursuer",
-            angle=v_angle,
-            vel=vel,
-            torque=torque,
-            local_force=local_force,
-            global_force=global_force,
-        )
+        self.world.update_entity_state("pursuer", **result)
 
-        (
-            v_angle,
-            vel,
-            torque,
-            local_force,
-            global_force,
-        ) = self.world.compute_vel_force(
+        result = self.world.compute_vel_force(
             ControlType.VelocityNonHolonomoic,
             state.pursuer_state[ANGLE_IDX],
             current_vel=None,
@@ -636,14 +617,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             vel_limit_norm=None,
         )
 
-        self.world.update_entity_state(
-            "evader",
-            angle=v_angle,
-            vel=vel,
-            torque=torque,
-            local_force=local_force,
-            global_force=global_force,
-        )
+        self.world.update_entity_state("evader", **result)
 
         # simulate
         self.world.simulate(1.0 / 10, 10)

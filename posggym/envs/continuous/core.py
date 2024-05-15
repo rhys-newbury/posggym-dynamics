@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from itertools import product
 from queue import PriorityQueue
-from typing import Dict, Iterable, List, NamedTuple, Set, Tuple, Union, Optional
+from typing import Dict, Iterable, List, NamedTuple, Set, Tuple, Union, Optional, Any
 
 import numpy as np
 from gymnasium import spaces
@@ -288,8 +288,6 @@ class AbstractContinuousWorld(ABC):
 
         """
         for _ in range(t):
-            # print(self.space.bodies)
-            # print(self.space.bodies)
             self.space.step(dt)
 
         if normalize_angles:
@@ -306,7 +304,7 @@ class AbstractContinuousWorld(ABC):
         current_vel: Optional[Tuple[float, float]],
         action_i: np.ndarray,
         vel_limit_norm: Optional[float],
-    ):
+    ) -> Dict[str, Any]:
         """
         Compute appropriate velocity, force, and torque based on the
         given control type and action.
@@ -396,7 +394,6 @@ class AbstractContinuousWorld(ABC):
         shape = pymunk.Circle(body, radius)
 
         shape.elasticity = 0.0  # no bouncing
-        shape.friction = 0.05
         shape.collision_type = self.get_collision_id()
         if color is not None:
             shape.color = color

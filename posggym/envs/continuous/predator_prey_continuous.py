@@ -560,13 +560,7 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             action = actions[str(i)]
 
             self.world.set_entity_state(f"pred_{i}", state.predator_states[i])
-            (
-                v_angle,
-                vel,
-                torque,
-                local_force,
-                global_force,
-            ) = self.world.compute_vel_force(
+            result = self.world.compute_vel_force(
                 ControlType.VelocityNonHolonomoic,
                 state.predator_states[i][ANGLE_IDX],
                 current_vel=None,
@@ -574,14 +568,7 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
                 vel_limit_norm=None,
             )
 
-            self.world.update_entity_state(
-                f"pred_{i}",
-                angle=v_angle,
-                vel=vel,
-                torque=torque,
-                local_force=local_force,
-                global_force=global_force,
-            )
+            self.world.update_entity_state(f"pred_{i}", **result)
 
         # simulate
         self.world.simulate(1.0 / 10, 10)

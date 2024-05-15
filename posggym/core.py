@@ -422,7 +422,6 @@ class DefaultEnv(Env[StateType, ObsType, ActType]):
         self, *, seed: int | None = None, options: Dict[str, Any] | None = None
     ) -> Tuple[Dict[str, ObsType], Dict[str, Dict]]:
         super().reset(seed=seed)
-        # print("reset")
         if self.should_randomze_dyn:
             self.randomize_dynamics()
 

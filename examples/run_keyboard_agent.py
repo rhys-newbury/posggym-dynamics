@@ -316,9 +316,9 @@ def run_continuous_env_keyboard_agent(
             action_i[0] = +angle_inc
 
         if keys[pygame.K_UP]:
-            action_i[1] = vel_inc  # if use_linear_acc else action_i[1] + vel_inc
+            action_i[1] = vel_inc if use_linear_acc else action_i[1] + vel_inc
         elif keys[pygame.K_DOWN]:
-            action_i[1] = -vel_inc  # if use_linear_acc else action_i[1] - vel_inc
+            action_i[1] = -vel_inc if use_linear_acc else action_i[1] - vel_inc
 
         if keys[pygame.K_c] and pygame.key.get_mods() & pygame.KMOD_CTRL:
             # exit on control-c
@@ -360,7 +360,6 @@ def run_keyboard_agent(
             env_id,
             render_mode="human",
             max_episode_steps=max_episode_steps,
-            control_type="ForceNonHolonomoic",
         )
     else:
         env = posggym.make(env_id, render_mode="human")
