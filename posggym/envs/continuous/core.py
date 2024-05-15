@@ -284,7 +284,7 @@ class AbstractContinuousWorld(ABC):
         """
         for _ in range(t):
             # print(self.space.bodies)
-            # print(self.space.bodies)            
+            # print(self.space.bodies)
             self.space.step(dt)
 
         if normalize_angles:
@@ -348,7 +348,13 @@ class AbstractContinuousWorld(ABC):
         else:
             raise RuntimeError("Invalid Control Type!")
 
-        return v_angle, vel, torque, local_force, global_force
+        return {
+            "v_angle": v_angle,
+            "vel": vel,
+            "torque": torque,
+            "local_force": local_force,
+            "global_force": global_force,
+        }
 
     def add_entity(
         self,
@@ -378,8 +384,6 @@ class AbstractContinuousWorld(ABC):
         body_type = pymunk.Body.STATIC if is_static else pymunk.Body.DYNAMIC
         body = pymunk.Body(mass, inertia, body_type=body_type)
         shape = pymunk.Circle(body, radius)
-
-        shape.collision_type = self.get_collision_id()
 
         shape.elasticity = 0.0  # no bouncing
         shape.friction = 0.05
@@ -541,7 +545,7 @@ class AbstractContinuousWorld(ABC):
     @staticmethod
     def euclidean_dist(loc1: Location, loc2: Location) -> float:
         """Get Euclidean distance between two positions on the grid."""
-        return math.sqrt((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2)
+        return math.sqrt(AbstractContinuousWorld.squared_euclidean_dist(loc1, loc2))
 
     @staticmethod
     def squared_euclidean_dist(loc1: Location, loc2: Location) -> float:
@@ -555,7 +559,7 @@ class AbstractContinuousWorld(ABC):
     @staticmethod
     def convert_angle_to_negpi_pi_interval(angle: float) -> float:
         """Convert angle in radians to be in (-pi, pi] interval."""
-        angle = angle % (2 * math.pi)
+        angle = AbstractContinuousWorld.convert_angle_to_0_2pi_interval(angle)
         if angle > math.pi:
             angle -= 2 * math.pi
         return angle
@@ -569,7 +573,7 @@ class AbstractContinuousWorld(ABC):
     @staticmethod
     def linear_to_xy_velocity(linear_vel: float, angle: float) -> Vec2d:
         """Convert from linear velocity to velocity along x and y axis."""
-        return linear_vel * Vec2d(1, 0).rotated(angle)
+        return linear_vel * AbstractContinuousWorld.rotate_vector(1, 0, angle)
 
     @staticmethod
     def rotate_vector(vx: float, vy: float, angle: float) -> Vec2d:

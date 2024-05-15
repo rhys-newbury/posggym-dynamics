@@ -624,46 +624,31 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             friction = self.rng.random()
             elasticity = self.rng.random() * 0.1
             mass = 0.5 + self.rng.random() * 10
-            # print(friction, elasticity, mass)
             self.world.change_entity_dynamics(
                 f"vehicle_{i}", friction=friction, mass=mass, elasticity=elasticity
             )
-        # print(self.world.space.bodies)
 
     def _get_next_state(
         self, state: DState, actions: Dict[str, DAction]
     ) -> Tuple[DState, List[CollisionType]]:
         for i in range(len(self.possible_agents)):
             state_i = state[i]
+            action_i = actions[str(i)]
+
             self.world.set_entity_state(f"vehicle_{i}", state_i.body)
 
             if state[i].status[0] or state[i].status[1]:
                 self.world.update_entity_state(f"vehicle_{i}", vel=(0.0, 0.0))
                 continue
 
-            action_i = actions[str(i)]
-
-            (
-                v_angle,
-                vel,
-                torque,
-                local_force,
-                global_force,
-            ) = self.world.compute_vel_force(
+            result = self.world.compute_vel_force(
                 self.control_type,
                 state_i.body[ANGLE_IDX],
                 (state_i.body[VX_IDX], state_i.body[VY_IDX]),
                 action_i,
                 self.vel_limit_norm,
             )
-            self.world.update_entity_state(
-                f"vehicle_{i}",
-                angle=v_angle,
-                vel=vel,
-                torque=torque,
-                local_force=local_force,
-                global_force=global_force,
-            )
+            self.world.update_entity_state(f"vehicle_{i}", **result)
 
         self.world.simulate(1.0 / 40, 40)
 
@@ -808,7 +793,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             else:
                 r_i = self.R_STEP_COST
             visible_other_agents = obs[i][32:64] != 15
-            distances = obs[i][32:64][visible_other_agents].sum()
+            distances: float = obs[i][32:64][visible_other_agents].sum()
             # progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
             old_dist = np.linalg.norm(
                 state[idx].body[[X_IDX, Y_IDX]] - state[idx].dest_coord
@@ -816,15 +801,18 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             new_dist = np.linalg.norm(
                 next_state[idx].body[[X_IDX, Y_IDX]] - next_state[idx].dest_coord
             )
-            progress = old_dist - new_dist
+            progress: float = old_dist - new_dist  # type: ignore
             r_i += max(0, progress) * self.R_PROGRESS
 
-            velocity_cost: float = np.linalg.norm(state[idx].body[[VX_IDX, VY_IDX]])
+            velocity_cost: float = np.linalg.norm(  # type: ignore
+                state[idx].body[[VX_IDX, VY_IDX]]
+            )
             r_i -= velocity_cost * 0.1
 
             if self.distance_punishment is not None:
                 r_i -= distances * self.distance_punishment
             rewards[i] = r_i
+
         return rewards
 
 
