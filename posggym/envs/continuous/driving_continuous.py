@@ -220,7 +220,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
 
     def __init__(
         self,
-        world: Union[str, "DrivingWorld"] = "14x14Empty",
+        world: Union[str, "DrivingWorld"] = "14x14RoundAbout",
         num_agents: int = 2,
         obs_dist: float = 5.0,
         n_sensors: int = 16,
@@ -634,8 +634,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             )
             self.world.update_entity_state(f"vehicle_{i}", **result)
 
-        self.world.simulate(1.0 / 40, 40)
-
+        self.world.simulate(1.0 / 10, 10)
         collision_types = [CollisionType.NONE] * len(self.possible_agents)
         new_state: List[Optional[VehicleState]] = [None] * len(self.possible_agents)
         for idx in range(len(self.possible_agents)):
@@ -778,12 +777,6 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
 
             r_i += max(0, progress) * self.R_PROGRESS
-
-            velocity_cost: float = np.linalg.norm(  # type: ignore
-                state[idx].body[[VX_IDX, VY_IDX]]
-            )
-            r_i -= velocity_cost * 0.1
-
             rewards[i] = r_i
 
         return rewards

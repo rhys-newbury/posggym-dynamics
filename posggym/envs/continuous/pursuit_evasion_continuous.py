@@ -605,7 +605,6 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             action_i=pursuer_a,
             vel_limit_norm=None,
         )
-        print(result)
         self.world.update_entity_state("pursuer", **result)
 
         result = self.world.compute_vel_force(
@@ -615,15 +614,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             action_i=evader_a,
             vel_limit_norm=None,
         )
-        print(result)
 
         self.world.update_entity_state("evader", **result)
-        print(
-            "state.pursuer_state: ",
-            state.pursuer_state,
-            "state.evader_state: ",
-            state.evader_state,
-        )
 
         # simulate
         self.world.simulate(1.0 / 10, 10)

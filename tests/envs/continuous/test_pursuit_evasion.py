@@ -61,7 +61,6 @@ def test_obs():
     for i in ["0", "1"]:
         obs_i = obs[i]
         # wall obs
-        print(obs_i[:n_sensors])
         assert np.allclose(obs_i[:n_sensors], max_obs_dist * np.ones(n_sensors))
         # other agent obs
         assert np.allclose(obs_i[n_sensors:n2], max_obs_dist * np.ones(n_sensors))

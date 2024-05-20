@@ -312,7 +312,7 @@ class DrivingEnv(DefaultEnv[DState, DObs, DAction]):
         return "\n".join(output) + "\n"
 
     def _render_img(self):
-        # assert self.render_mode in ["human", "rgb", "rgb_array"]
+        assert self.render_mode in ["human", "rgb", "rgb_array", "rgb_array_dict"]
         model: DrivingModel = self.model  # type: ignore
 
         import posggym.envs.grid_world.render as render_lib
