@@ -169,7 +169,7 @@ class TwoPathsEnv(DefaultEnv[TPState, TPObs, TPAction]):
         return "\n".join(output) + "\n"
 
     def _render_img(self):
-        assert self.render_mode in ["human", "rgb", "rgb_array_dict"]
+        assert self.render_mode in ["human", "rgb", "rgb_array", "rgb_array_dict"]
         model: TwoPathsModel = self.model  # type: ignore
 
         import posggym.envs.grid_world.render as render_lib

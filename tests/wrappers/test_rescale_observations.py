@@ -41,7 +41,9 @@ def test_rescale_observation(min_val, max_val):
     sensors_dim, obs_dim = n_sensors * 2, n_sensors * 2 + 5
     sensor_low, sensor_high = [0.0] * sensors_dim, [obs_dist] * sensors_dim
     base_space = spaces.Box(
-        low=np.array([*sensor_low, -2 * math.pi, -1, -1, 0, 0], dtype=np.float32),
+        low=np.array(
+            [*sensor_low, -2 * math.pi, -1, -1, -size, -size], dtype=np.float32
+        ),
         high=np.array([*sensor_high, 2 * math.pi, 1, 1, size, size], dtype=np.float32),
     )
 

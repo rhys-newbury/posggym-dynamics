@@ -268,7 +268,7 @@ class DrivingEnv(DefaultEnv[DState, DObs, DAction]):
         render_mode: Optional[str] = None,
     ):
         super().__init__(
-            DrivingModel(grid, num_agents, obs_dim),
+            DrivingModel(grid, num_agents, obs_dim, should_randomze_dyn),
             render_mode=render_mode,
             should_randomze_dyn=should_randomze_dyn,
         )
@@ -414,6 +414,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
         grid: Union[str, "DrivingGrid"],
         num_agents: int,
         obs_dim: Tuple[int, int, int],
+        should_randomze_dyn: bool,
     ):
         if isinstance(grid, str):
             assert grid in SUPPORTED_GRIDS, (
@@ -438,11 +439,12 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
 
         assert obs_dim[0] > 0 and obs_dim[1] >= 0 and obs_dim[2] >= 0
         self._grid = grid
+        self.should_randomze_dyn = should_randomze_dyn
         self.obs_dim = obs_dim
         self._obs_front, self._obs_back, self._obs_side = obs_dim
         self.num_agents = num_agents
-        self.max_speeds = [max_enum_value(Speed)] * self.num_agents
-        self.min_speeds = [min_enum_value(Speed)] * self.num_agents
+        self.max_speeds = [Speed.FORWARD_FAST] * self.num_agents
+        self.min_speeds = [Speed.STOPPED] * self.num_agents
         self.allow_reverse_turn = [False] * self.num_agents
 
         def _coord_space():
@@ -457,7 +459,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
                     (
                         _coord_space(),
                         spaces.Discrete(len(Direction)),
-                        spaces.Discrete(len(Speed)),
+                        spaces.Discrete(len(Speed) if should_randomze_dyn else 4),
                         _coord_space(),  # destination coord
                         spaces.Discrete(2),  # destination reached
                         spaces.Discrete(2),  # crashed
@@ -486,7 +488,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
                             for _ in range(obs_depth * obs_width)
                         )
                     ),
-                    spaces.Discrete(len(Speed)),
+                    spaces.Discrete(len(Speed) if self.should_randomze_dyn else 4),
                     _coord_space(),  # current coord
                     _coord_space(),  # dest coord,
                     spaces.Discrete(2),  # dest reached

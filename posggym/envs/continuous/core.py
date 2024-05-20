@@ -313,13 +313,13 @@ class AbstractContinuousWorld(ABC):
         - control_type (ControlType): The type of control being used.
         - current_ang (float): The current angle of the agent.
         - current_vel (Optional[Tuple[float, float]]): The current vel of the agent,
-                      if given, velcoity will be relative to the current agent
+                      if given, velocity will be relative to the current agent
         - action_i (np.ndarray): The action input for the agent.
         - vel_limit_norm (Optional[float]): The limit of velocity norm
                       if given, velcoity will be relative to the current agent
         """
 
-        v_angle, vel, torque, local_force, global_force = (
+        angle, vel, torque, local_force, global_force = (
             None,
             None,
             None,
@@ -328,14 +328,14 @@ class AbstractContinuousWorld(ABC):
         )
 
         if control_type == ControlType.VelocityNonHolonomoic:
-            v_angle = current_ang + action_i[0]
-            vel = self.linear_to_xy_velocity(action_i[1], v_angle)
+            angle = current_ang + action_i[0]
+            vel = self.linear_to_xy_velocity(action_i[1], angle)
             if current_vel is not None and vel_limit_norm is not None:
                 vel += Vec2d(*current_vel).rotated(action_i[0])
                 vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
 
         elif control_type == ControlType.VelocityHolonomoic:
-            v_angle = 0
+            angle = 0
             if current_vel is not None and vel_limit_norm is not None:
                 vel = (current_vel[0] + action_i[0], current_vel[1] + action_i[1])
                 vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
@@ -347,12 +347,12 @@ class AbstractContinuousWorld(ABC):
             torque = action_i[1]
         elif control_type == ControlType.ForceNonHolonomoic:
             global_force = (action_i[0], action_i[1])
-            v_angle = 0
+            angle = 0
         else:
             raise RuntimeError("Invalid Control Type!")
 
         return {
-            "v_angle": v_angle,
+            "angle": angle,
             "vel": vel,
             "torque": torque,
             "local_force": local_force,
@@ -474,7 +474,7 @@ class AbstractContinuousWorld(ABC):
         coord: FloatCoord | List[float] | np.ndarray | Vec2d | None = None,
         angle: float | None = None,
         vel: FloatCoord | List[float] | np.ndarray | Vec2d | None = None,
-        vangle: float | None = None,
+        v_angle: float | None = None,
         local_force: Tuple[float, float] | None = None,
         global_force: Tuple[float, float] | None = None,
         torque: float | None = None,
@@ -494,8 +494,8 @@ class AbstractContinuousWorld(ABC):
         if vel is not None:
             body.velocity = Vec2d(vel[0], vel[1])
 
-        if vangle is not None:
-            body.angular_velocity = vangle
+        if v_angle is not None:
+            body.angular_velocity = v_angle
 
         if local_force is not None:
             body.apply_force_at_local_point(local_force, (0, 0))

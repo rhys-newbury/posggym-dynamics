@@ -123,12 +123,21 @@ class StackEnv(posggym.Wrapper):
     def step(self, actions):
         # input shape (num_envs * num_agents, *single_action_space.shape)
         # convert to dict of actions, shape (num_envs, *single_action_space.shape)
-        if all(
-            isinstance(
-                self.env.unwrapped.single_action_spaces[key], spaces.MultiDiscrete
+        print(self.env)
+        print(self.env.unwrapped)
+        print(actions)
+
+        try:
+            is_multi_discrete = all(
+                isinstance(
+                    self.env.unwrapped.single_action_spaces[key], spaces.MultiDiscrete
+                )
+                for key in self.env.unwrapped.single_action_spaces
             )
-            for key in self.env.unwrapped.single_action_spaces
-        ):
+        except AttributeError:
+            is_multi_discrete = False
+
+        if is_multi_discrete:
             action_map = {
                 i: actions[:, idx, :] for idx, i in enumerate(self.possible_agents)
             }

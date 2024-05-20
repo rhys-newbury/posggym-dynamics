@@ -260,7 +260,8 @@ class PredatorPreyEnv(DefaultEnv[PPState, PPObs, PPAction]):
         return "\n".join(output) + "\n"
 
     def _render_img(self):
-        assert self.render_mode in ["human", "rgb"]
+        print(self.render_mode)
+        assert self.render_mode in ["human", "rgb", "rgb_array", "rgb_array_dict"]
         model: PredatorPreyModel = self.model  # type: ignore
 
         import posggym.envs.grid_world.render as render_lib

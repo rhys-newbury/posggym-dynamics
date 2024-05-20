@@ -595,7 +595,6 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
     def _get_next_state(self, state: PEState, actions: Dict[str, PEAction]) -> PEState:
         evader_a = actions[str(self.EVADER_IDX)]
         pursuer_a = actions[str(self.PURSUER_IDX)]
-
         self.world.set_entity_state("pursuer", state.pursuer_state)
         self.world.set_entity_state("evader", state.evader_state)
 
@@ -606,18 +605,25 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             action_i=pursuer_a,
             vel_limit_norm=None,
         )
-
+        print(result)
         self.world.update_entity_state("pursuer", **result)
 
         result = self.world.compute_vel_force(
             ControlType.VelocityNonHolonomoic,
-            state.pursuer_state[ANGLE_IDX],
+            state.evader_state[ANGLE_IDX],
             current_vel=None,
             action_i=evader_a,
             vel_limit_norm=None,
         )
+        print(result)
 
         self.world.update_entity_state("evader", **result)
+        print(
+            "state.pursuer_state: ",
+            state.pursuer_state,
+            "state.evader_state: ",
+            state.evader_state,
+        )
 
         # simulate
         self.world.simulate(1.0 / 10, 10)
@@ -674,7 +680,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
                 state.pursuer_state[ANGLE_IDX],
             )
             opp_coord = (state.evader_state[X_IDX], state.evader_state[Y_IDX])
-
+        print(agent_pos, opp_coord)
         ray_dists, ray_col_type = self.world.check_collision_circular_rays(
             agent_pos,
             self.max_obs_distance,
