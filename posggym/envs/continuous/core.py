@@ -8,12 +8,26 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from itertools import product
 from queue import PriorityQueue
-from typing import Dict, Iterable, List, NamedTuple, Set, Tuple, Union, Optional, Any
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    NamedTuple,
+    Set,
+    Tuple,
+    Union,
+    Optional,
+    Any,
+    TYPE_CHECKING,
+)
 
 import numpy as np
 from gymnasium import spaces
 
 from posggym.error import DependencyNotInstalled
+
+if TYPE_CHECKING:
+    from posggym.utils import seeding
 
 
 try:
@@ -59,6 +73,30 @@ class ControlType(str, Enum):
     ForceHolonomoic = "ForceHolonomoic"
     VelocityNonHolonomoic = "VelocityNonHolonomoic"
     ForceNonHolonomoic = "ForceNonHolonomoic"
+
+
+def randomize_dynamics(
+    agent_names: List[str], rng: seeding.RNG, world: AbstractContinuousWorld
+):
+    in_distribution = True
+    # import pdb; pdb.set_trace()
+    # for i in range(len(self.possible_agents)):
+    for name in agent_names:
+        if in_distribution:
+            friction = rng.random()
+            elasticity = rng.random() * 0.1
+            mass = 0.5 + rng.random() * 10
+            world.change_entity_dynamics(
+                name, friction=friction, mass=mass, elasticity=elasticity
+            )
+        else:
+            # import pdb; pdb.set_trace()
+            friction = rng.random() * 2
+            elasticity = rng.random() * 0.5
+            mass = 0.5 + rng.random() * 20
+            world.change_entity_dynamics(
+                name, friction=friction, mass=mass, elasticity=elasticity
+            )
 
 
 class CollisionType(Enum):

@@ -264,13 +264,13 @@ class DrivingEnv(DefaultEnv[DState, DObs, DAction]):
         grid: Union[str, "DrivingGrid"] = "14x14RoundAbout",
         num_agents: int = 2,
         obs_dim: Tuple[int, int, int] = (3, 1, 1),
-        should_randomze_dyn=False,
+        should_randomize_dyn=False,
         render_mode: Optional[str] = None,
     ):
         super().__init__(
-            DrivingModel(grid, num_agents, obs_dim, should_randomze_dyn),
+            DrivingModel(grid, num_agents, obs_dim, should_randomize_dyn),
             render_mode=render_mode,
-            should_randomze_dyn=should_randomze_dyn,
+            should_randomize_dyn=should_randomize_dyn,
         )
 
         self._obs_dim = obs_dim
@@ -414,7 +414,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
         grid: Union[str, "DrivingGrid"],
         num_agents: int,
         obs_dim: Tuple[int, int, int],
-        should_randomze_dyn: bool,
+        should_randomize_dyn: bool,
     ):
         if isinstance(grid, str):
             assert grid in SUPPORTED_GRIDS, (
@@ -439,7 +439,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
 
         assert obs_dim[0] > 0 and obs_dim[1] >= 0 and obs_dim[2] >= 0
         self._grid = grid
-        self.should_randomze_dyn = should_randomze_dyn
+        self.should_randomize_dyn = should_randomize_dyn
         self.obs_dim = obs_dim
         self._obs_front, self._obs_back, self._obs_side = obs_dim
         self.num_agents = num_agents
@@ -459,7 +459,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
                     (
                         _coord_space(),
                         spaces.Discrete(len(Direction)),
-                        spaces.Discrete(len(Speed) if should_randomze_dyn else 4),
+                        spaces.Discrete(len(Speed) if should_randomize_dyn else 4),
                         _coord_space(),  # destination coord
                         spaces.Discrete(2),  # destination reached
                         spaces.Discrete(2),  # crashed
@@ -488,7 +488,7 @@ class DrivingModel(M.POSGModel[DState, DObs, DAction]):
                             for _ in range(obs_depth * obs_width)
                         )
                     ),
-                    spaces.Discrete(len(Speed) if self.should_randomze_dyn else 4),
+                    spaces.Discrete(len(Speed) if self.should_randomize_dyn else 4),
                     _coord_space(),  # current coord
                     _coord_space(),  # dest coord,
                     spaces.Discrete(2),  # dest reached

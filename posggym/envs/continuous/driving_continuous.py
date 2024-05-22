@@ -37,8 +37,10 @@ from posggym.envs.continuous.core import (
     VY_IDX,
     generate_action_space,
     clamp,
+    randomize_dynamics as randomize,
 )
 from posggym.utils import seeding
+import random
 
 
 class VehicleState(NamedTuple):
@@ -226,7 +228,8 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         n_sensors: int = 16,
         render_mode: Optional[str] = None,
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
-        should_randomze_dyn: bool = False,
+        should_randomize_dyn: bool = False,
+        should_randomize_kin: bool = False,
     ):
         if isinstance(control_type, str):
             try:
@@ -244,7 +247,8 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 control_type,
             ),
             render_mode=render_mode,
-            should_randomze_dyn=should_randomze_dyn,
+            should_randomize_dyn=should_randomize_dyn,
+            should_randomize_kin=should_randomize_kin,
         )
         self.window_surface = None
         self.clock = None
@@ -476,14 +480,23 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.fyaw_limit = math.pi
         self.fvel_limit = 3.0
 
-        self.action_spaces = generate_action_space(
-            self.control_type,
-            self.possible_agents,
-            self.dyaw_limit,
-            self.dvel_limit,
-            self.fyaw_limit,
-            self.fvel_limit,
-        )
+        self.action_spaces_per_control = {}
+        for i in ControlType:
+            self.action_spaces_per_control[i] = generate_action_space(
+                i,
+                self.possible_agents,
+                self.dyaw_limit,
+                self.dvel_limit,
+                self.fyaw_limit,
+                self.fvel_limit,
+            )
+
+        self.action_spaces = {
+            i: spaces.Box(np.array([-1, -1]), np.array([1, 1]))
+            for i in self.possible_agents
+        }
+
+        self.control_types = {i: self.control_type for i in self.possible_agents}
 
         self.vel_limit_norm = 1.0
         # Observes entity and distance to entity along a n_sensors rays from the agent
@@ -603,14 +616,34 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             next_state, obs, rewards, terminated, truncated, all_done, info
         )
 
+    def randomize_kinematics(self):
+        self.control_types = {
+            i: random.choice(list(ControlType)) for i in self.possible_agents
+        }
+
     def randomize_dynamics(self):
-        for i in range(len(self.possible_agents)):
-            friction = self.rng.random()
-            elasticity = self.rng.random() * 0.1
-            mass = 0.5 + self.rng.random() * 10
-            self.world.change_entity_dynamics(
-                f"vehicle_{i}", friction=friction, mass=mass, elasticity=elasticity
-            )
+        randomize(
+            [f"vehicle_{i}" for i in range(len(self.possible_agents))],
+            self.rng,
+            self.world,
+        )
+
+    def scale_action(
+        self, action: DAction, source_space: spaces.Space, target_space: spaces.Box
+    ) -> DAction:
+        assert isinstance(source_space, spaces.Box)
+
+        source_low = source_space.low
+        source_high = source_space.high
+        target_low = target_space.low
+        target_high = target_space.high
+
+        # Apply the scaling formula for each dimension of the action
+        scaled_action = target_low + (action - source_low) * (
+            target_high - target_low
+        ) / (source_high - source_low)
+
+        return scaled_action
 
     def _get_next_state(
         self, state: DState, actions: Dict[str, DAction]
@@ -625,11 +658,17 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 self.world.update_entity_state(f"vehicle_{i}", vel=(0.0, 0.0))
                 continue
 
+            action_scaled = self.scale_action(
+                action_i,
+                self.action_spaces[str(i)],
+                self.action_spaces_per_control[self.control_types[str(i)]][str(i)],
+            )
+
             result = self.world.compute_vel_force(
-                self.control_type,
+                self.control_types[str(i)],
                 state_i.body[ANGLE_IDX],
                 (state_i.body[VX_IDX], state_i.body[VY_IDX]),
-                action_i,
+                action_scaled,
                 self.vel_limit_norm,
             )
             self.world.update_entity_state(f"vehicle_{i}", **result)

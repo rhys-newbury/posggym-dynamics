@@ -378,13 +378,19 @@ class DefaultEnv(Env[StateType, ObsType, ActType]):
         self,
         model: POSGModel,
         render_mode: Optional[str] = None,
-        should_randomze_dyn: Optional[bool] = False,
+        should_randomize_dyn: Optional[bool] = False,
+        should_randomize_kin: Optional[bool] = False,
     ):
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.model = model
         self.render_mode = render_mode
-        self.should_randomze_dyn = should_randomze_dyn
-        if self.should_randomze_dyn:
+        self.should_randomize_dyn = should_randomize_dyn
+        self.should_randomize_kin = should_randomize_kin
+
+        if self.should_randomize_kin:
+            self.randomize_kinematics()
+
+        if self.should_randomize_dyn:
             self.randomize_dynamics()
 
         self._state = self.model.sample_initial_state()
@@ -422,7 +428,9 @@ class DefaultEnv(Env[StateType, ObsType, ActType]):
         self, *, seed: int | None = None, options: Dict[str, Any] | None = None
     ) -> Tuple[Dict[str, ObsType], Dict[str, Dict]]:
         super().reset(seed=seed)
-        if self.should_randomze_dyn:
+        if self.should_randomize_kin:
+            self.randomize_kinematics()
+        if self.should_randomize_dyn:
             self.randomize_dynamics()
 
         self._state = self.model.sample_initial_state()
@@ -438,6 +446,9 @@ class DefaultEnv(Env[StateType, ObsType, ActType]):
 
     def randomize_dynamics(self):
         self.model.randomize_dynamics()
+
+    def randomize_kinematics(self):
+        self.model.randomize_kinematics()
 
 
 WrapperStateType = TypeVar("WrapperStateType")

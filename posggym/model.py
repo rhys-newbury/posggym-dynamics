@@ -311,6 +311,9 @@ class POSGModel(abc.ABC, Generic[StateType, ObsType, ActType]):
     def randomize_dynamics(self):
         pass
 
+    def randomize_kinematics(self):
+        pass
+
 
 class POSGFullModel(POSGModel[StateType, ObsType, ActType], abc.ABC):
     """A fully defined Partially Observable Stochastic Game (POSG) model.

@@ -230,7 +230,7 @@ class PursuitEvasionEnv(DefaultEnv):
         max_obs_distance: int = 12,
         use_progress_reward: bool = True,
         render_mode: Optional[str] = None,
-        should_randomze_dyn=False,
+        should_randomize_dyn=False,
     ):
         model = PursuitEvasionModel(
             grid,
@@ -240,7 +240,7 @@ class PursuitEvasionEnv(DefaultEnv):
         super().__init__(
             model,
             render_mode=render_mode,
-            should_randomze_dyn=should_randomze_dyn,
+            should_randomize_dyn=should_randomize_dyn,
         )
 
         self.max_obs_distance = max_obs_distance
