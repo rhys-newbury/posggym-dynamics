@@ -1001,7 +1001,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "#+...+#\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "7x7CrissCross": {
         "world_str": (
@@ -1014,7 +1014,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "#+#+#+#\n"
         ),
         "supported_num_agents": 6,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "7x7RoundAbout": {
         "world_str": (
@@ -1027,7 +1027,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "#+...+#\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "14x14Blocks": {
         "world_str": (
@@ -1047,7 +1047,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "#+..........+#\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "14x14CrissCross": {
         "world_str": (
@@ -1067,7 +1067,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "##+##+##+##+##\n"
         ),
         "supported_num_agents": 8,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "14x14RoundAbout": {
         "world_str": (
@@ -1087,7 +1087,7 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "#+..........+#\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 50,
+        "max_episode_steps": 500,
     },
     "14x14Empty": {
         "world_str": (
@@ -1107,6 +1107,6 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
             "++++++++++++++\n"
         ),
         "supported_num_agents": 4,
-        "max_episode_steps": 500,
+        "max_episode_steps": 5000,
     },
 }
