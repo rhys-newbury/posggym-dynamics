@@ -38,9 +38,9 @@ from posggym.envs.continuous.core import (
     generate_action_space,
     clamp,
     randomize_dynamics as randomize,
+    scale_action,
 )
 from posggym.utils import seeding
-import random
 
 
 class VehicleState(NamedTuple):
@@ -226,10 +226,11 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         num_agents: int = 2,
         obs_dist: float = 5.0,
         n_sensors: int = 16,
-        render_mode: Optional[str] = None,
+        obs_self_model: bool = False,
         control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
         should_randomize_dyn: bool = False,
         should_randomize_kin: bool = False,
+        render_mode: Optional[str] = None,
     ):
         if isinstance(control_type, str):
             try:
@@ -244,6 +245,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 num_agents,
                 obs_dist,
                 n_sensors,
+                obs_self_model,
                 control_type,
             ),
             render_mode=render_mode,
@@ -427,6 +429,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         num_agents: int,
         obs_dist: float,
         n_sensors: int,
+        obs_self_model: bool,
         control_type: ControlType,
     ):
         if isinstance(world, str):
@@ -447,6 +450,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.world = world
         self.n_sensors = n_sensors
         self.obs_dist = obs_dist
+        self.obs_self_model = obs_self_model
         self.vehicle_collision_dist = 2.1 * self.world.agent_radius
         self.control_type = control_type
 
@@ -480,16 +484,13 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.fyaw_limit = math.pi
         self.fvel_limit = 3.0
 
-        self.action_spaces_per_control = {}
-        for i in ControlType:
-            self.action_spaces_per_control[i] = generate_action_space(
-                i,
-                self.possible_agents,
-                self.dyaw_limit,
-                self.dvel_limit,
-                self.fyaw_limit,
-                self.fvel_limit,
-            )
+        self.action_spaces_per_control = generate_action_space(
+            self.possible_agents,
+            self.dyaw_limit,
+            self.dvel_limit,
+            self.fyaw_limit,
+            self.fvel_limit,
+        )
 
         self.action_spaces = {
             i: spaces.Box(np.array([-1, -1]), np.array([1, 1]))
@@ -504,7 +505,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         # n_sensors to (2 * n_sensors) = other vehicle dist
         # Also observs angle, vx, vy, dest dx, desy dy
         self.sensor_obs_dim = self.n_sensors * 2
-        self.obs_dim = self.sensor_obs_dim + 5
+        self.obs_dim = self.sensor_obs_dim + 5 + int(self.obs_self_model)
         sensor_low = [0.0] * self.sensor_obs_dim
         sensor_high = [self.obs_dist] * self.sensor_obs_dim
         self.observation_spaces = {
@@ -517,11 +518,13 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                         -1,
                         -self.world.size,
                         -self.world.size,
-                    ],
+                    ]
+                    + ([0] if self.obs_self_model else []),
                     dtype=np.float32,
                 ),
                 high=np.array(
-                    [*sensor_high, 2 * math.pi, 1, 1, self.world.size, self.world.size],
+                    [*sensor_high, 2 * math.pi, 1, 1, self.world.size, self.world.size]
+                    + ([len(ControlType)] if self.obs_self_model else []),
                     dtype=np.float32,
                 ),
                 dtype=np.float32,
@@ -597,6 +600,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
         next_state, collision_types = self._get_next_state(state, clipped_actions)
         obs = self._get_obs(next_state)
+
         rewards = self._get_rewards(state, next_state, collision_types)
         terminated = {i: any(next_state[int(i)].status) for i in self.possible_agents}
         truncated = {i: False for i in self.possible_agents}
@@ -618,7 +622,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
     def randomize_kinematics(self):
         self.control_types = {
-            i: random.choice(list(ControlType)) for i in self.possible_agents
+            i: self.rng.choice(list(ControlType)) for i in self.possible_agents
         }
 
     def randomize_dynamics(self):
@@ -627,23 +631,6 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             self.rng,
             self.world,
         )
-
-    def scale_action(
-        self, action: DAction, source_space: spaces.Space, target_space: spaces.Box
-    ) -> DAction:
-        assert isinstance(source_space, spaces.Box)
-
-        source_low = source_space.low
-        source_high = source_space.high
-        target_low = target_space.low
-        target_high = target_space.high
-
-        # Apply the scaling formula for each dimension of the action
-        scaled_action = target_low + (action - source_low) * (
-            target_high - target_low
-        ) / (source_high - source_low)
-
-        return scaled_action
 
     def _get_next_state(
         self, state: DState, actions: Dict[str, DAction]
@@ -658,7 +645,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 self.world.update_entity_state(f"vehicle_{i}", vel=(0.0, 0.0))
                 continue
 
-            action_scaled = self.scale_action(
+            action_scaled = scale_action(
                 action_i,
                 self.action_spaces[str(i)],
                 self.action_spaces_per_control[self.control_types[str(i)]][str(i)],
@@ -791,6 +778,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs[d + 2] = clamp(state_i.body[VY_IDX], -1.0, 1.0)
         obs[d + 3] = state_i.dest_coord[X_IDX] - pos_i[X_IDX]
         obs[d + 4] = state_i.dest_coord[Y_IDX] - pos_i[Y_IDX]
+        if self.obs_self_model:
+            obs[d + 5] = int(self.control_types[agent_id])
 
         return obs
 
@@ -1110,3 +1099,16 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
         "max_episode_steps": 5000,
     },
 }
+
+if __name__ == "__main__":
+    from posggym.utils.run_random_agents import run_random_agent
+
+    run_random_agent(
+        "DrivingContinuous-v0",
+        num_episodes=5,
+        max_episode_steps=100,
+        render_mode="human",
+        obs_self_model=True,
+        should_randomize_dyn=True,
+        should_randomize_kin=True,
+    )

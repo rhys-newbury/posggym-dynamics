@@ -21,6 +21,8 @@ from posggym.envs.continuous.core import (
     ANGLE_IDX,
     generate_action_space,
     ControlType,
+    randomize_dynamics as randomize,
+    scale_action,
 )
 from posggym.utils import seeding
 
@@ -221,8 +223,19 @@ class PredatorPreyContinuousEnv(DefaultEnv[PPState, PPObs, PPAction]):
         prey_strength: Optional[int] = None,
         obs_dist: float = 4,
         n_sensors: int = 16,
+        control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
+        should_randomize_dyn: bool = False,
+        should_randomize_kin: bool = False,
+        obs_self_model: bool = False,
         render_mode: Optional[str] = None,
     ):
+        if isinstance(control_type, str):
+            try:
+                control_type = ControlType[control_type]
+            except ValueError:
+                logger.warn("Invalid control type, defaulting to VelocityNonHolonomoic")
+                control_type = ControlType.VelocityNonHolonomoic
+
         super().__init__(
             PredatorPreyContinuousModel(
                 world=world,
@@ -232,8 +245,12 @@ class PredatorPreyContinuousEnv(DefaultEnv[PPState, PPObs, PPAction]):
                 prey_strength=prey_strength,
                 obs_dist=obs_dist,
                 n_sensors=n_sensors,
+                control_type=control_type,
+                obs_self_model=obs_self_model,
             ),
             render_mode=render_mode,
+            should_randomize_dyn=should_randomize_dyn,
+            should_randomize_kin=should_randomize_kin,
         )
         self.window_surface = None
         self.clock = None
@@ -383,6 +400,8 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
         prey_strength: Optional[int],
         obs_dist: float,
         n_sensors: int,
+        control_type: ControlType,
+        obs_self_model: bool,
     ):
         assert 1 < num_predators <= 8
         assert num_prey > 0
@@ -424,6 +443,7 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
         # capture radius large enough so prey in corner can be captured by 3 predators
         self.prey_capture_dist = 2.75 * self.world.agent_radius
         self.possible_agents = tuple((str(x) for x in range(self.num_predators)))
+        self.obs_self_model = obs_self_model
 
         def _pos_space(n_agents: int):
             # x, y, angle, vx, vy, vangle
@@ -450,19 +470,41 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             )
         )
 
+        self.control_type = control_type
+
         # can turn up to 45 degrees per step
         self.dyaw_limit = math.pi / 4
-        self.action_spaces = generate_action_space(
-            ControlType.VelocityNonHolonomoic,
+        self.dvel_limit = 1.0
+
+        self.fyaw_limit = math.pi
+        self.fvel_limit = 3.0
+
+        self.action_spaces_per_control = generate_action_space(
             self.possible_agents,
-            dyaw_limit=self.dyaw_limit,
-            dvel_limit=(0.0, 1.0),
+            self.dyaw_limit,
+            self.dvel_limit,
+            self.fyaw_limit,
+            self.fvel_limit,
         )
+
+        self.action_spaces = {
+            i: spaces.Box(np.array([-1, -1]), np.array([1, 1]))
+            for i in self.possible_agents
+        }
+        self.control_types = {i: self.control_type for i in self.possible_agents}
 
         self.obs_dim = self.n_sensors * 3
         self.observation_spaces = {
             i: spaces.Box(
-                low=0.0, high=self.obs_dist, shape=(self.obs_dim,), dtype=np.float32
+                low=np.array(
+                    [0.0] * self.obs_dim + ([0] if self.obs_self_model else [])
+                ),
+                high=np.array(
+                    [self.obs_dist] * self.obs_dim
+                    + ([len(ControlType)] if self.obs_self_model else [])
+                ),
+                shape=(self.obs_dim + int(self.obs_self_model),),
+                dtype=np.float32,
             )
             for i in self.possible_agents
         }
@@ -538,6 +580,18 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             next_state, obs, rewards, terminated, truncated, all_done, info
         )
 
+    def randomize_kinematics(self):
+        self.control_types = {
+            i: self.rng.choice(list(ControlType)) for i in self.possible_agents
+        }
+
+    def randomize_dynamics(self):
+        randomize(
+            [f"pred_{i}" for i in range(len(self.possible_agents))],
+            self.rng,
+            self.world,
+        )
+
     def _get_next_state(self, state: PPState, actions: Dict[str, PPAction]) -> PPState:
         prey_move_angles = self._get_prey_move_angles(state)
 
@@ -557,14 +611,21 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
 
         # apply predator actions
         for i in range(self.num_predators):
-            action = actions[str(i)]
+            action_i = actions[str(i)]
+
+            action_scaled = scale_action(
+                action_i,
+                self.action_spaces[str(i)],
+                self.action_spaces_per_control[self.control_types[str(i)]][str(i)],
+            )
 
             self.world.set_entity_state(f"pred_{i}", state.predator_states[i])
+
             result = self.world.compute_vel_force(
-                ControlType.VelocityNonHolonomoic,
+                self.control_types[str(i)],
                 state.predator_states[i][ANGLE_IDX],
                 current_vel=None,
-                action_i=action,
+                action_i=action_scaled,
                 vel_limit_norm=None,
             )
 
@@ -714,6 +775,9 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             (min_idx, np.arange(self.n_sensors)), dims=sensor_readings.shape
         )
         obs[idx] = np.minimum(min_val, obs[idx])
+
+        if self.obs_self_model:
+            obs[-1] = int(self.control_types[agent_id])
 
         return obs
 
@@ -979,3 +1043,16 @@ SUPPORTED_WORLDS = {
     "20x20": get_20x20_world,
     "20x20Blocks": get_20x20_blocks_world,
 }
+
+if __name__ == "__main__":
+    from posggym.utils.run_random_agents import run_random_agent
+
+    run_random_agent(
+        "PredatorPreyContinuous-v0",
+        num_episodes=5,
+        max_episode_steps=100,
+        render_mode="human",
+        obs_self_model=True,
+        should_randomize_dyn=True,
+        should_randomize_kin=True,
+    )

@@ -1,12 +1,9 @@
 """Test for DiscretizeActions Wrapper."""
-from typing import cast
-
 import numpy as np
 import pytest
 from gymnasium import spaces
 
 import posggym
-from posggym.envs.continuous.driving_continuous import DrivingContinuousModel
 from posggym.wrappers import DiscretizeActions
 
 
@@ -22,12 +19,10 @@ def test_discretize_actions_flatten(num_actions):
     )
     wrapped_env = DiscretizeActions(env, num_actions=num_actions, flatten=True)
 
-    model = cast(DrivingContinuousModel, env.model)
-
     box_act_dim = 2
     base_space = spaces.Box(
-        low=np.array([-model.dyaw_limit, -model.dvel_limit], dtype=np.float32),
-        high=np.array([model.dyaw_limit, model.dvel_limit], dtype=np.float32),
+        low=np.array([-1, -1], dtype=np.float32),
+        high=np.array([1, 1], dtype=np.float32),
     )
 
     n_flat_actions = np.prod([num_actions] * box_act_dim)
@@ -71,12 +66,10 @@ def test_discretize_actions_multidiscrete(num_actions):
     )
     wrapped_env = DiscretizeActions(env, num_actions=num_actions, flatten=False)
 
-    model = cast(DrivingContinuousModel, env.model)
-
     box_act_dim = 2
     base_space = spaces.Box(
-        low=np.array([-model.dyaw_limit, -model.dvel_limit], dtype=np.float32),
-        high=np.array([model.dyaw_limit, model.dvel_limit], dtype=np.float32),
+        low=np.array([-1, -1], dtype=np.float32),
+        high=np.array([1, 1], dtype=np.float32),
     )
 
     # wrapped_space = spaces.MultiDiscrete([num_actions] * box_act_dim)

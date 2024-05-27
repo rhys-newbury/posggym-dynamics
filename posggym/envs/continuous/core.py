@@ -68,11 +68,17 @@ def clamp(x, lower, upper):
     return lower if x < lower else upper if x > upper else x
 
 
-class ControlType(str, Enum):
-    VelocityHolonomoic = "VelocityHolonomoic"
-    ForceHolonomoic = "ForceHolonomoic"
-    VelocityNonHolonomoic = "VelocityNonHolonomoic"
-    ForceNonHolonomoic = "ForceNonHolonomoic"
+class ControlType(Enum):
+    VelocityHolonomoic = 0, "VelocityHolonomoic"
+    ForceHolonomoic = 1, "ForceHolonomoic"
+    VelocityNonHolonomoic = 2, "VelocityNonHolonomoic"
+    ForceNonHolonomoic = 3, "ForceNonHolonomoic"
+
+    def __int__(self):
+        return self.value[0]
+
+    def __str__(self):
+        return self.value[1]
 
 
 def randomize_dynamics(
@@ -147,6 +153,44 @@ VANGLE_IDX = PMBodyState._fields.index("vangle")
 
 
 def generate_action_space(
+    possible_agents: Tuple[str, ...],
+    dyaw_limit: Union[float, Tuple[float, float]],
+    dvel_limit: Union[float, Tuple[float, float]],
+    fyaw_limit: Union[float, Tuple[float, float]],
+    fvel_limit: Union[float, Tuple[float, float]],
+):
+    action_spaces_per_control = {}
+    for i in ControlType:
+        action_spaces_per_control[i] = generate_action_space_per_control(
+            i,
+            possible_agents,
+            dyaw_limit,
+            dvel_limit,
+            fyaw_limit,
+            fvel_limit,
+        )
+    return action_spaces_per_control
+
+
+def scale_action(
+    action: np.ndarray, source_space: spaces.Space, target_space: spaces.Box
+) -> np.ndarray:
+    assert isinstance(source_space, spaces.Box)
+
+    source_low = source_space.low
+    source_high = source_space.high
+    target_low = target_space.low
+    target_high = target_space.high
+
+    # Apply the scaling formula for each dimension of the action
+    scaled_action = target_low + (action - source_low) * (target_high - target_low) / (
+        source_high - source_low
+    )
+
+    return scaled_action
+
+
+def generate_action_space_per_control(
     control_type: ControlType,
     possible_agents: Tuple[str, ...],
     dyaw_limit: Optional[Union[float, Tuple[float, float]]] = None,

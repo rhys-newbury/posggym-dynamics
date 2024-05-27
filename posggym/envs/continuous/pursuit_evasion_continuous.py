@@ -33,6 +33,7 @@ from posggym.envs.continuous.core import (
     FloatCoord,
     Coord,
     generate_interior_walls,
+    randomize_dynamics as randomize,
 )
 from posggym.utils import seeding
 
@@ -241,9 +242,20 @@ class PursuitEvasionContinuousEnv(DefaultEnv):
         n_sensors: int = 16,
         normalize_reward: bool = True,
         use_progress_reward: bool = True,
+        obs_self_model: bool = False,
+        control_type: Union[ControlType, str] = ControlType.VelocityNonHolonomoic,
+        should_randomize_dyn: bool = False,
+        should_randomize_kin: bool = False,
         render_mode: Optional[str] = None,
         **kwargs,
     ):
+        if isinstance(control_type, str):
+            try:
+                control_type = ControlType[control_type]
+            except ValueError:
+                logger.warn("Invalid control type, defaulting to VelocityNonHolonomoic")
+                control_type = ControlType.VelocityNonHolonomoic
+
         model = PursuitEvasionContinuousModel(
             world,
             max_obs_distance=max_obs_distance,
@@ -251,9 +263,16 @@ class PursuitEvasionContinuousEnv(DefaultEnv):
             use_progress_reward=use_progress_reward,
             fov=fov,
             n_sensors=n_sensors,
+            control_type=control_type,
+            obs_self_model=obs_self_model,
             **kwargs,
         )
-        super().__init__(model, render_mode=render_mode)
+        super().__init__(
+            model,
+            render_mode=render_mode,
+            should_randomize_dyn=should_randomize_dyn,
+            should_randomize_kin=should_randomize_kin,
+        )
         self.window_surface = None
         self.blocked_surface = None
         self.clock = None
@@ -453,6 +472,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         n_sensors: int = 16,
         normalize_reward: bool = True,
         use_progress_reward: bool = True,
+        obs_self_model: bool = False,
+        control_type: ControlType = ControlType.VelocityNonHolonomoic,
     ):
         assert 0 < fov < 2 * np.pi, "fov must be in (0, 2 * pi)"
         assert n_sensors > 0, "n_sensors must be positive"
@@ -473,6 +494,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self._normalize_reward = normalize_reward
         self._use_progress_reward = use_progress_reward
         self.fov = fov
+        self.control_type = control_type
+        self.obs_self_model = obs_self_model
 
         self._max_sp_distance = self.world.get_max_shortest_path_distance()
         self._max_raw_return = self.R_EVASION
@@ -501,12 +524,25 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
 
         # can turn by up to 45 degrees per timestep
         self.dyaw_limit = math.pi / 4
-        self.action_spaces = generate_action_space(
-            ControlType.VelocityNonHolonomoic,
+        self.dvel_limit = 0.25
+
+        self.fyaw_limit = math.pi
+        self.fvel_limit = 3.0
+
+        self.action_spaces_per_control = generate_action_space(
             self.possible_agents,
-            dyaw_limit=self.dyaw_limit,
-            dvel_limit=(0.0, 1.0),
+            self.dyaw_limit,
+            self.dvel_limit,
+            self.fyaw_limit,
+            self.fvel_limit,
         )
+
+        self.action_spaces = {
+            i: spaces.Box(np.array([-1, -1]), np.array([1, 1]))
+            for i in self.possible_agents
+        }
+
+        self.control_types = {i: self.control_type for i in self.possible_agents}
 
         self.obs_dist = self.max_obs_distance
         self.n_sensors = n_sensors
@@ -517,9 +553,14 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         size = self.world.size
         self.observation_spaces = {
             i: spaces.Box(
-                low=np.array([*sensor_low, 0, 0, 0, 0, 0, 0, 0], dtype=np.float32),
+                low=np.array(
+                    [*sensor_low, 0, 0, 0, 0, 0, 0, 0]
+                    + ([0] if self.obs_self_model else []),
+                    dtype=np.float32,
+                ),
                 high=np.array(
-                    [*sensor_high, 1, size, size, size, size, size, size],
+                    [*sensor_high, 1, size, size, size, size, size, size]
+                    + ([len(ControlType)] if self.obs_self_model else []),
                     dtype=np.float32,
                 ),
                 dtype=np.float32,
@@ -599,7 +640,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self.world.set_entity_state("evader", state.evader_state)
 
         result = self.world.compute_vel_force(
-            ControlType.VelocityNonHolonomoic,
+            self.control_types[str(self.PURSUER_IDX)],
             state.pursuer_state[ANGLE_IDX],
             current_vel=None,
             action_i=pursuer_a,
@@ -608,7 +649,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self.world.update_entity_state("pursuer", **result)
 
         result = self.world.compute_vel_force(
-            ControlType.VelocityNonHolonomoic,
+            self.control_types[str(self.EVADER_IDX)],
             state.evader_state[ANGLE_IDX],
             current_vel=None,
             action_i=evader_a,
@@ -653,6 +694,18 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             str(self.PURSUER_IDX): pursuer_obs,
         }, evader_seen
 
+    def randomize_kinematics(self):
+        self.control_types = {
+            i: self.rng.choice(list(ControlType)) for i in self.possible_agents
+        }
+
+    def randomize_dynamics(self):
+        randomize(
+            ["pursuer", "evader"],
+            self.rng,
+            self.world,
+        )
+
     def _get_agent_obs(
         self,
         state: PEState,
@@ -672,7 +725,6 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
                 state.pursuer_state[ANGLE_IDX],
             )
             opp_coord = (state.evader_state[X_IDX], state.evader_state[Y_IDX])
-        print(agent_pos, opp_coord)
         ray_dists, ray_col_type = self.world.check_collision_circular_rays(
             agent_pos,
             self.max_obs_distance,
@@ -706,6 +758,11 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         else:
             obs[aux_obs_idx + 5 : aux_obs_idx + 7] = [0, 0]
 
+        if self.obs_self_model:
+            if evader:
+                obs[-1] = int(self.control_types[str(self.EVADER_IDX)])
+            else:
+                obs[-1] = int(self.control_types[str(self.PURSUER_IDX)])
         return obs, other_agent_seen
 
     def _get_reward(
@@ -1001,3 +1058,15 @@ SUPPORTED_WORLDS: Dict[str, Callable[[], PEWorld]] = {
     "16x16": get_16x16_world,
     "32x32": get_32x32_world,
 }
+
+
+if __name__ == "__main__":
+    from posggym.utils.run_random_agents import run_random_agent
+
+    run_random_agent(
+        "PursuitEvasionContinuous-v0",
+        num_episodes=5,
+        max_episode_steps=100,
+        render_mode="human",
+        obs_self_model=True,
+    )
