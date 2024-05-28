@@ -343,11 +343,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         n_sensors = model.n_sensors
         for i, obs_i in self._last_obs.items():
             line_obs = obs_i[: model.sensor_obs_dim]
-            x, y, agent_angle = (
-                state[int(i)].body[X_IDX],
-                state[int(i)].body[Y_IDX],
-                state[int(i)].body[ANGLE_IDX],
-            )
+            x, y, agent_angle = state[int(i)].body[[X_IDX, Y_IDX, ANGLE_IDX]]
             angle_inc = 2 * math.pi / n_sensors
             for k in range(n_sensors):
                 values = [
