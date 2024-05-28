@@ -21,25 +21,12 @@ from typing import Dict, List, Optional
 import posggym
 
 
-def run_random_agent(
-    env_id: str,
+def run_random(
+    env: posggym.Env,
     num_episodes: int,
     max_episode_steps: Optional[int] = None,
     seed: Optional[int] = None,
-    render_mode: Optional[str] = None,
-    **kwargs,
 ):
-    """Run random agents."""
-    if max_episode_steps is not None:
-        env = posggym.make(
-            env_id,
-            render_mode=render_mode,
-            max_episode_steps=max_episode_steps,
-            **kwargs,
-        )
-    else:
-        env = posggym.make(env_id, render_mode=render_mode, **kwargs)
-
     env.reset(seed=seed)
 
     dones = 0
@@ -84,6 +71,28 @@ def run_random_agent(
     mean_returns = {i: sum(r) / len(r) for i, r in episode_rewards.items()}
     print(f"Mean Episode returns {mean_returns}")
     return mean_steps, mean_returns
+
+
+def run_random_agent(
+    env_id: str,
+    num_episodes: int,
+    max_episode_steps: Optional[int] = None,
+    seed: Optional[int] = None,
+    render_mode: Optional[str] = None,
+    **kwargs,
+):
+    """Run random agents."""
+    if max_episode_steps is not None:
+        env = posggym.make(
+            env_id,
+            render_mode=render_mode,
+            max_episode_steps=max_episode_steps,
+            **kwargs,
+        )
+    else:
+        env = posggym.make(env_id, render_mode=render_mode, **kwargs)
+
+    return run_random(env, num_episodes, max_episode_steps, seed)
 
 
 if __name__ == "__main__":

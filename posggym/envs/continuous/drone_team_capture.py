@@ -394,7 +394,6 @@ class DroneTeamCaptureModel(M.POSGModel[DTCState, DTCObs, DTCAction]):
                 for i in self.possible_agents
             }
         else:
-            # act[0] = angular velocity
             self.action_spaces = {
                 i: spaces.Box(
                     low=np.array([-self.dyaw_limit], dtype=np.float32),

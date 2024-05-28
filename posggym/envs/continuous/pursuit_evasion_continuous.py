@@ -34,6 +34,8 @@ from posggym.envs.continuous.core import (
     Coord,
     generate_interior_walls,
     randomize_dynamics as randomize,
+    scale_action,
+    generate_parameters,
 )
 from posggym.utils import seeding
 
@@ -496,6 +498,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self.fov = fov
         self.control_type = control_type
         self.obs_self_model = obs_self_model
+        self.dt = 1.0
+        self.substeps = 10
 
         self._max_sp_distance = self.world.get_max_shortest_path_distance()
         self._max_raw_return = self.R_EVASION
@@ -524,7 +528,7 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
 
         # can turn by up to 45 degrees per timestep
         self.dyaw_limit = math.pi / 4
-        self.dvel_limit = 0.25
+        self.dvel_limit = 1.0
 
         self.fyaw_limit = math.pi
         self.fvel_limit = 3.0
@@ -543,6 +547,9 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         }
 
         self.control_types = {i: self.control_type for i in self.possible_agents}
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+        }
 
         self.obs_dist = self.max_obs_distance
         self.n_sensors = n_sensors
@@ -639,27 +646,46 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
         self.world.set_entity_state("pursuer", state.pursuer_state)
         self.world.set_entity_state("evader", state.evader_state)
 
+        pursuer_a_scaled = scale_action(
+            pursuer_a,
+            self.action_spaces[str(self.PURSUER_IDX)],
+            self.action_spaces_per_control[self.control_types[str(self.PURSUER_IDX)]][
+                str(self.PURSUER_IDX)
+            ],
+        )
+
         result = self.world.compute_vel_force(
             self.control_types[str(self.PURSUER_IDX)],
             state.pursuer_state[ANGLE_IDX],
             current_vel=None,
-            action_i=pursuer_a,
+            action_i=pursuer_a_scaled,
             vel_limit_norm=None,
+            kinematic_parameters=self.kinematic_parameters[str(self.PURSUER_IDX)],
         )
+
         self.world.update_entity_state("pursuer", **result)
+
+        evader_a_scaled = scale_action(
+            evader_a,
+            self.action_spaces[str(self.EVADER_IDX)],
+            self.action_spaces_per_control[self.control_types[str(self.EVADER_IDX)]][
+                str(self.EVADER_IDX)
+            ],
+        )
 
         result = self.world.compute_vel_force(
             self.control_types[str(self.EVADER_IDX)],
             state.evader_state[ANGLE_IDX],
             current_vel=None,
-            action_i=evader_a,
+            action_i=evader_a_scaled,
             vel_limit_norm=None,
+            kinematic_parameters=self.kinematic_parameters[str(self.PURSUER_IDX)],
         )
 
         self.world.update_entity_state("evader", **result)
 
         # simulate
-        self.world.simulate(1.0 / 10, 10)
+        self.world.simulate(self.dt / self.substeps, self.substeps)
 
         pursuer_next_state = np.array(
             self.world.get_entity_state("pursuer"),
@@ -697,6 +723,9 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
     def randomize_kinematics(self):
         self.control_types = {
             i: self.rng.choice(list(ControlType)) for i in self.possible_agents
+        }
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
         }
 
     def randomize_dynamics(self):
@@ -1061,12 +1090,14 @@ SUPPORTED_WORLDS: Dict[str, Callable[[], PEWorld]] = {
 
 
 if __name__ == "__main__":
-    from posggym.utils.run_random_agents import run_random_agent
+    from posggym.utils.run_random_agents import run_random
 
-    run_random_agent(
-        "PursuitEvasionContinuous-v0",
+    run_random(
+        PursuitEvasionContinuousEnv(
+            render_mode="human",
+            obs_self_model=True,
+            control_type=ControlType.WheeledRobot,
+        ),
         num_episodes=5,
         max_episode_steps=100,
-        render_mode="human",
-        obs_self_model=True,
     )

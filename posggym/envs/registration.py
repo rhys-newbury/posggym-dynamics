@@ -13,17 +13,12 @@ import copy
 import difflib
 import importlib
 import re
-import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Tuple
 
 from posggym import error, logger
 from posggym.wrappers import OrderEnforcing, PassiveEnvChecker, TimeLimit
-
-if sys.version_info < (3, 10):
-    import importlib_metadata as metadata  # type: ignore
-
 
 if TYPE_CHECKING:
     from posggym.core import Env
@@ -361,7 +356,8 @@ def _check_metadata(metadata_: Dict):
     """Checks validity of metadata. Printing warnings if it's invalid."""
     if not isinstance(metadata_, dict):
         raise error.InvalidMetadata(
-            f"Expect the environment metadata to be dict, actual type: {type(metadata)}"
+            "Expect the environment metadata to be dict,",
+            f"actual type: {type(metadata_)}",
         )
 
     render_modes = metadata_.get("render_modes")

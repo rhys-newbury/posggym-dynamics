@@ -73,6 +73,7 @@ class ControlType(Enum):
     ForceHolonomoic = 1, "ForceHolonomoic"
     VelocityNonHolonomoic = 2, "VelocityNonHolonomoic"
     ForceNonHolonomoic = 3, "ForceNonHolonomoic"
+    WheeledRobot = 4, "WheeledRobot"
 
     def __int__(self):
         return self.value[0]
@@ -103,6 +104,16 @@ def randomize_dynamics(
             world.change_entity_dynamics(
                 name, friction=friction, mass=mass, elasticity=elasticity
             )
+
+
+def generate_parameters(control_type: ControlType) -> Dict[str, float]:
+    if control_type == ControlType.WheeledRobot:
+        return {
+            "wheel_radius": 1.0,
+            "L": 1,
+        }
+    else:
+        return {}
 
 
 class CollisionType(Enum):
@@ -207,40 +218,47 @@ def generate_action_space_per_control(
     if isinstance(fvel_limit, float):
         fvel_limit = (-fvel_limit, fvel_limit)
 
-    if control_type == ControlType.VelocityNonHolonomoic:
-        assert dyaw_limit is not None and dvel_limit is not None
-        neg_limits = np.array(
-            [dyaw_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
-        )
-        pos_limits = np.array(
-            [dyaw_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
-        )
-    elif control_type == ControlType.VelocityHolonomoic:
-        assert dvel_limit is not None
-        neg_limits = np.array(
-            [dvel_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
-        )
-        pos_limits = np.array(
-            [dvel_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
-        )
-    elif control_type == ControlType.ForceNonHolonomoic:
-        assert fyaw_limit is not None and fvel_limit is not None
-        neg_limits = np.array(
-            [fyaw_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
-        )
-        pos_limits = np.array(
-            [fyaw_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
-        )
-    elif control_type == ControlType.ForceHolonomoic:
-        assert fvel_limit is not None
-        neg_limits = np.array(
-            [fvel_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
-        )
-        pos_limits = np.array(
-            [fvel_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
-        )
-    else:
-        raise RuntimeError("Invalid Control Type")
+    match control_type:
+        case ControlType.VelocityNonHolonomoic:
+            assert dyaw_limit is not None and dvel_limit is not None
+            neg_limits = np.array(
+                [dyaw_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
+            )
+            pos_limits = np.array(
+                [dyaw_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
+            )
+        case ControlType.VelocityHolonomoic:
+            assert dvel_limit is not None
+            neg_limits = np.array(
+                [dvel_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
+            )
+            pos_limits = np.array(
+                [dvel_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
+            )
+        case ControlType.ForceNonHolonomoic:
+            assert fyaw_limit is not None and fvel_limit is not None
+            neg_limits = np.array(
+                [fyaw_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
+            )
+            pos_limits = np.array(
+                [fyaw_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
+            )
+        case ControlType.ForceHolonomoic:
+            assert fvel_limit is not None
+            neg_limits = np.array(
+                [fvel_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
+            )
+            pos_limits = np.array(
+                [fvel_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
+            )
+        case ControlType.WheeledRobot:
+            assert dvel_limit is not None
+            neg_limits = np.array(
+                [dvel_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
+            )
+            pos_limits = np.array(
+                [dvel_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
+            )
 
     return {
         i: spaces.Box(
@@ -386,6 +404,7 @@ class AbstractContinuousWorld(ABC):
         current_vel: Optional[Tuple[float, float]],
         action_i: np.ndarray,
         vel_limit_norm: Optional[float],
+        kinematic_parameters: Dict[str, float],
     ) -> Dict[str, Any]:
         """
         Compute appropriate velocity, force, and torque based on the
@@ -408,30 +427,35 @@ class AbstractContinuousWorld(ABC):
             None,
             None,
         )
+        match control_type:
+            case ControlType.VelocityNonHolonomoic:
+                angle = current_ang + action_i[0]
+                vel = self.linear_to_xy_velocity(action_i[1], angle)
+                if current_vel is not None and vel_limit_norm is not None:
+                    vel += Vec2d(*current_vel).rotated(action_i[0])
+                    vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
 
-        if control_type == ControlType.VelocityNonHolonomoic:
-            angle = current_ang + action_i[0]
-            vel = self.linear_to_xy_velocity(action_i[1], angle)
-            if current_vel is not None and vel_limit_norm is not None:
-                vel += Vec2d(*current_vel).rotated(action_i[0])
-                vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
+            case ControlType.VelocityHolonomoic:
+                angle = 0
+                if current_vel is not None and vel_limit_norm is not None:
+                    vel = (current_vel[0] + action_i[0], current_vel[1] + action_i[1])
+                    vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
+                else:
+                    vel = (action_i[0], action_i[1])
 
-        elif control_type == ControlType.VelocityHolonomoic:
-            angle = 0
-            if current_vel is not None and vel_limit_norm is not None:
-                vel = (current_vel[0] + action_i[0], current_vel[1] + action_i[1])
-                vel = self.clamp_norm(vel[0], vel[1], vel_limit_norm)
-            else:
-                vel = (action_i[0], action_i[1])
-
-        elif control_type == ControlType.ForceHolonomoic:
-            local_force = (action_i[0], 0)
-            torque = action_i[1]
-        elif control_type == ControlType.ForceNonHolonomoic:
-            global_force = (action_i[0], action_i[1])
-            angle = 0
-        else:
-            raise RuntimeError("Invalid Control Type!")
+            case ControlType.ForceHolonomoic:
+                local_force = (action_i[0], 0)
+                torque = action_i[1]
+            case ControlType.ForceNonHolonomoic:
+                global_force = (action_i[0], action_i[1])
+                angle = 0
+            case ControlType.WheeledRobot:
+                wheel_radius = kinematic_parameters["wheel_radius"]
+                L = kinematic_parameters["L"]
+                v = wheel_radius / 2 * (action_i[0] + action_i[1])
+                omega = wheel_radius / L * (action_i[0] - action_i[1])
+                vel = v * np.array([np.cos(current_ang), np.sin(current_ang)])
+                angle = current_ang + omega
 
         return {
             "angle": angle,

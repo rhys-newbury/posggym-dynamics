@@ -23,6 +23,7 @@ from posggym.envs.continuous.core import (
     ControlType,
     randomize_dynamics as randomize,
     scale_action,
+    generate_parameters,
 )
 from posggym.utils import seeding
 
@@ -471,6 +472,8 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
         )
 
         self.control_type = control_type
+        self.dt = 1.0
+        self.substeps = 10
 
         # can turn up to 45 degrees per step
         self.dyaw_limit = math.pi / 4
@@ -491,7 +494,11 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             i: spaces.Box(np.array([-1, -1]), np.array([1, 1]))
             for i in self.possible_agents
         }
+
         self.control_types = {i: self.control_type for i in self.possible_agents}
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+        }
 
         self.obs_dim = self.n_sensors * 3
         self.observation_spaces = {
@@ -584,6 +591,9 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
         self.control_types = {
             i: self.rng.choice(list(ControlType)) for i in self.possible_agents
         }
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+        }
 
     def randomize_dynamics(self):
         randomize(
@@ -627,12 +637,13 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
                 current_vel=None,
                 action_i=action_scaled,
                 vel_limit_norm=None,
+                kinematic_parameters=self.kinematic_parameters[str(i)],
             )
 
             self.world.update_entity_state(f"pred_{i}", **result)
 
         # simulate
-        self.world.simulate(1.0 / 10, 10)
+        self.world.simulate(self.dt / self.substeps, self.substeps)
 
         # extract next state
         next_pred_states = np.array(
@@ -1045,14 +1056,15 @@ SUPPORTED_WORLDS = {
 }
 
 if __name__ == "__main__":
-    from posggym.utils.run_random_agents import run_random_agent
+    from posggym.utils.run_random_agents import run_random
 
-    run_random_agent(
-        "PredatorPreyContinuous-v0",
+    run_random(
+        PredatorPreyContinuousEnv(
+            render_mode="human",
+            obs_self_model=True,
+            should_randomize_dyn=True,
+            should_randomize_kin=True,
+        ),
         num_episodes=5,
         max_episode_steps=100,
-        render_mode="human",
-        obs_self_model=True,
-        should_randomize_dyn=True,
-        should_randomize_kin=True,
     )

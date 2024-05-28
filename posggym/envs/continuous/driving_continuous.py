@@ -39,6 +39,7 @@ from posggym.envs.continuous.core import (
     clamp,
     randomize_dynamics as randomize,
     scale_action,
+    generate_parameters,
 )
 from posggym.utils import seeding
 
@@ -453,6 +454,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.obs_self_model = obs_self_model
         self.vehicle_collision_dist = 2.1 * self.world.agent_radius
         self.control_type = control_type
+        self.dt = 1.0
+        self.substeps = 10
 
         self.possible_agents = tuple(str(i) for i in range(num_agents))
         self.state_space = spaces.Tuple(
@@ -498,6 +501,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         }
 
         self.control_types = {i: self.control_type for i in self.possible_agents}
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+        }
 
         self.vel_limit_norm = 1.0
         # Observes entity and distance to entity along a n_sensors rays from the agent
@@ -624,6 +630,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.control_types = {
             i: self.rng.choice(list(ControlType)) for i in self.possible_agents
         }
+        self.kinematic_parameters = {
+            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+        }
 
     def randomize_dynamics(self):
         randomize(
@@ -657,10 +666,11 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 (state_i.body[VX_IDX], state_i.body[VY_IDX]),
                 action_scaled,
                 self.vel_limit_norm,
+                self.kinematic_parameters[str(i)],
             )
             self.world.update_entity_state(f"vehicle_{i}", **result)
 
-        self.world.simulate(1.0 / 10, 10)
+        self.world.simulate(self.dt / self.substeps, self.substeps)
         collision_types = [CollisionType.NONE] * len(self.possible_agents)
         new_state: List[Optional[VehicleState]] = [None] * len(self.possible_agents)
         for idx in range(len(self.possible_agents)):
@@ -1101,14 +1111,16 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
 }
 
 if __name__ == "__main__":
-    from posggym.utils.run_random_agents import run_random_agent
+    from posggym.utils.run_random_agents import run_random
 
-    run_random_agent(
-        "DrivingContinuous-v0",
+    run_random(
+        env=DrivingContinuousEnv(
+            render_mode="human",
+            obs_self_model=True,
+            should_randomize_dyn=True,
+            should_randomize_kin=False,
+            control_type=ControlType.WheeledRobot,
+        ),
         num_episodes=5,
         max_episode_steps=100,
-        render_mode="human",
-        obs_self_model=True,
-        should_randomize_dyn=True,
-        should_randomize_kin=True,
     )

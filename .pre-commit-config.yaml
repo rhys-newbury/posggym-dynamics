@@ -33,6 +33,8 @@ repos:
     rev: 'v0.0.254'
     hooks:
       - id: ruff
+        args:
+          - --fix
   - repo: local
     hooks:
       - id: pyright
