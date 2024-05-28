@@ -71,7 +71,7 @@ class PettingZoo(ParallelEnv):
     def reset(
         self,
         seed: Optional[int] = None,
-        return_info: bool = False,
+        return_info: bool = True,
         options: Optional[dict] = None,
     ) -> ObsDict:
         obs, info = self.env.reset(seed=seed, options=options)
@@ -102,7 +102,6 @@ class PettingZoo(ParallelEnv):
         for i, done in truncated.items():
             if done:
                 self._done_agents.add(i)
-
         return obs, rewards, terminated, truncated, info
 
     def render(self) -> None | np.ndarray | str | List:

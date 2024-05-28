@@ -74,12 +74,20 @@ class ControlType(Enum):
     VelocityNonHolonomoic = 2, "VelocityNonHolonomoic"
     ForceNonHolonomoic = 3, "ForceNonHolonomoic"
     WheeledRobot = 4, "WheeledRobot"
+    Ackermann = 5, "Ackermann"
 
     def __int__(self):
         return self.value[0]
 
     def __str__(self):
         return self.value[1]
+
+    @classmethod
+    def from_str(cls, name):
+        for member in cls:
+            if member.value[1] == name:
+                return member
+        raise ValueError(f"'{name}' is not a valid {cls.__name__}")
 
 
 def randomize_dynamics(
@@ -106,14 +114,22 @@ def randomize_dynamics(
             )
 
 
-def generate_parameters(control_type: ControlType) -> Dict[str, float]:
-    if control_type == ControlType.WheeledRobot:
-        return {
-            "wheel_radius": 1.0,
-            "L": 1,
-        }
-    else:
-        return {}
+def generate_parameters(
+    control_type: ControlType, rng: seeding.RNG
+) -> Dict[str, float]:
+    match control_type:
+        case ControlType.WheeledRobot:
+            return {
+                "wheel_radius": rng.random() * 0.1,
+                "L": rng.random() * 0.1,
+            }
+        case ControlType.Ackermann:
+            return {
+                "L": rng.random() * 0.1,
+            }
+
+        case _:
+            return {}
 
 
 class CollisionType(Enum):
@@ -218,47 +234,36 @@ def generate_action_space_per_control(
     if isinstance(fvel_limit, float):
         fvel_limit = (-fvel_limit, fvel_limit)
 
+    assert isinstance(dyaw_limit, tuple)
+    assert isinstance(dvel_limit, tuple)
+    assert isinstance(fyaw_limit, tuple)
+    assert isinstance(fvel_limit, tuple)
+
     match control_type:
         case ControlType.VelocityNonHolonomoic:
             assert dyaw_limit is not None and dvel_limit is not None
-            neg_limits = np.array(
-                [dyaw_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
-            )
-            pos_limits = np.array(
-                [dyaw_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
-            )
+            neg_limits = np.array([dyaw_limit[0], dvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([dyaw_limit[1], dvel_limit[1]], dtype=np.float32)
         case ControlType.VelocityHolonomoic:
             assert dvel_limit is not None
-            neg_limits = np.array(
-                [dvel_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
-            )
-            pos_limits = np.array(
-                [dvel_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
-            )
+            neg_limits = np.array([dvel_limit[0], dvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([dvel_limit[1], dvel_limit[1]], dtype=np.float32)
         case ControlType.ForceNonHolonomoic:
             assert fyaw_limit is not None and fvel_limit is not None
-            neg_limits = np.array(
-                [fyaw_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
-            )
-            pos_limits = np.array(
-                [fyaw_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
-            )
+            neg_limits = np.array([fyaw_limit[0], fvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([fyaw_limit[1], fvel_limit[1]], dtype=np.float32)
         case ControlType.ForceHolonomoic:
             assert fvel_limit is not None
-            neg_limits = np.array(
-                [fvel_limit[0], fvel_limit[0]], dtype=np.float32  # type: ignore
-            )
-            pos_limits = np.array(
-                [fvel_limit[1], fvel_limit[1]], dtype=np.float32  # type: ignore
-            )
+            neg_limits = np.array([fvel_limit[0], fvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([fvel_limit[1], fvel_limit[1]], dtype=np.float32)
         case ControlType.WheeledRobot:
             assert dvel_limit is not None
-            neg_limits = np.array(
-                [dvel_limit[0], dvel_limit[0]], dtype=np.float32  # type: ignore
-            )
-            pos_limits = np.array(
-                [dvel_limit[1], dvel_limit[1]], dtype=np.float32  # type: ignore
-            )
+            neg_limits = np.array([dvel_limit[0], dvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([dvel_limit[1], dvel_limit[1]], dtype=np.float32)
+        case ControlType.Ackermann:
+            assert dyaw_limit is not None and dvel_limit is not None
+            neg_limits = np.array([dyaw_limit[0], dvel_limit[0]], dtype=np.float32)
+            pos_limits = np.array([dyaw_limit[1], dvel_limit[1]], dtype=np.float32)
 
     return {
         i: spaces.Box(
@@ -454,6 +459,12 @@ class AbstractContinuousWorld(ABC):
                 L = kinematic_parameters["L"]
                 v = wheel_radius / 2 * (action_i[0] + action_i[1])
                 omega = wheel_radius / L * (action_i[0] - action_i[1])
+                vel = v * np.array([np.cos(current_ang), np.sin(current_ang)])
+                angle = current_ang + omega
+            case ControlType.Ackermann:
+                v, phi = action_i
+                L = kinematic_parameters["L"]
+                omega = v / L * np.tan(phi)
                 vel = v * np.array([np.cos(current_ang), np.sin(current_ang)])
                 angle = current_ang + omega
 

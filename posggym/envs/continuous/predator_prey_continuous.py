@@ -232,7 +232,7 @@ class PredatorPreyContinuousEnv(DefaultEnv[PPState, PPObs, PPAction]):
     ):
         if isinstance(control_type, str):
             try:
-                control_type = ControlType[control_type]
+                control_type = ControlType.from_str(control_type)
             except ValueError:
                 logger.warn("Invalid control type, defaulting to VelocityNonHolonomoic")
                 control_type = ControlType.VelocityNonHolonomoic
@@ -497,7 +497,8 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
 
         self.control_types = {i: self.control_type for i in self.possible_agents}
         self.kinematic_parameters = {
-            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+            i: generate_parameters(self.control_types[i], self.rng)
+            for i in self.possible_agents
         }
 
         self.obs_dim = self.n_sensors * 3
@@ -592,7 +593,8 @@ class PredatorPreyContinuousModel(M.POSGModel[PPState, PPObs, PPAction]):
             i: self.rng.choice(list(ControlType)) for i in self.possible_agents
         }
         self.kinematic_parameters = {
-            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+            i: generate_parameters(self.control_types[i], self.rng)
+            for i in self.possible_agents
         }
 
     def randomize_dynamics(self):

@@ -253,7 +253,7 @@ class PursuitEvasionContinuousEnv(DefaultEnv):
     ):
         if isinstance(control_type, str):
             try:
-                control_type = ControlType[control_type]
+                control_type = ControlType.from_str(control_type)
             except ValueError:
                 logger.warn("Invalid control type, defaulting to VelocityNonHolonomoic")
                 control_type = ControlType.VelocityNonHolonomoic
@@ -548,7 +548,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
 
         self.control_types = {i: self.control_type for i in self.possible_agents}
         self.kinematic_parameters = {
-            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+            i: generate_parameters(self.control_types[i], self.rng)
+            for i in self.possible_agents
         }
 
         self.obs_dist = self.max_obs_distance
@@ -725,7 +726,8 @@ class PursuitEvasionContinuousModel(M.POSGModel[PEState, PEObs, PEAction]):
             i: self.rng.choice(list(ControlType)) for i in self.possible_agents
         }
         self.kinematic_parameters = {
-            i: generate_parameters(self.control_types[i]) for i in self.possible_agents
+            i: generate_parameters(self.control_types[i], self.rng)
+            for i in self.possible_agents
         }
 
     def randomize_dynamics(self):
