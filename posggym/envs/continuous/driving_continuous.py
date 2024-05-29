@@ -827,17 +827,6 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
             progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
 
-            print(
-                self.world.get_shortest_path_distance(
-                    (state[idx].body[[0, 1]]),
-                    (state[idx].dest_coord[X_IDX], state[idx].dest_coord[Y_IDX]),
-                ),
-                progress,
-            )
-
-            # if progress != 0:
-            #     print("progress", progress)
-
             r_i += max(0, progress) * self.R_PROGRESS
             rewards[str(idx)] = r_i
 
