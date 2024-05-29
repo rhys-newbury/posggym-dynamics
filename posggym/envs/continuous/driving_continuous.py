@@ -887,11 +887,17 @@ class DrivingWorld(SquareContinuousWorld):
             self.shortest_paths = self.get_all_shortest_paths(set.union(*dest_coords))
         else:
             self.shortest_paths = self.get_all_continuous(set.union(*dest_coords))
+        self.continuous_resolution = 0.05
 
     def get_all_continuous(
         self, dests: Iterable[FloatCoord]
     ) -> Dict[Tuple[float, float], Dict[Tuple[float, float], int]]:
-        pickle_path = Path(__file__).resolve().parent / "pickle"
+        pickle_path = os.environ.get("POSGGYM_PICKLE_PATH")
+        if pickle_path is None:
+            pickle_path = Path(__file__).resolve().parent / "pickle"
+        else:
+            pickle_path = Path(pickle_path)
+
         pickle_path.mkdir(exist_ok=True)
 
         unique_hash = create_unique_hash(
@@ -910,7 +916,9 @@ class DrivingWorld(SquareContinuousWorld):
 
         def compute_a_star_continuous(params):
             i, j, d, blocked_coords = params
-            return (i, j), a_star_continuous((i, j), d, blocked_coords, 0.5, 0.5)
+            return (i, j), a_star_continuous(
+                (i, j), d, blocked_coords, 0.5, self.continuous_resolution
+            )
 
         for d in dests:
             for i in np.arange(0, self.size, 0.5):
@@ -968,8 +976,15 @@ class DrivingWorld(SquareContinuousWorld):
             dest_c = self.convert_to_coord(dest)
             return int(self.shortest_paths[dest_c][coord_c])
         else:
-            coord_c = (round(coord[0] * 2) / 2, round(coord[1] * 2) / 2)
-            dest_c = (round(dest[0] * 2) / 2, round(dest[1] * 2) / 2)
+            factor = 1 / self.continuous_resolution
+            coord_c = (
+                round(coord[0] * factor) / factor,
+                round(coord[1] * factor) / factor,
+            )
+            dest_c = (
+                round(dest[0] * factor) / factor,
+                round(dest[1] * factor) / factor,
+            )
             return self.shortest_paths[dest_c][coord_c]  # type: ignore
 
     def get_max_shortest_path_distance(self) -> int:
