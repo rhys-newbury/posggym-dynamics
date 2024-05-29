@@ -883,11 +883,12 @@ class DrivingWorld(SquareContinuousWorld):
         self.start_coords = start_coords
         self.dest_coords = dest_coords
         self.discrete_progress = discrete_progress
+        self.continuous_resolution = 0.05
+
         if discrete_progress:
             self.shortest_paths = self.get_all_shortest_paths(set.union(*dest_coords))
         else:
             self.shortest_paths = self.get_all_continuous(set.union(*dest_coords))
-        self.continuous_resolution = 0.05
 
     def get_all_continuous(
         self, dests: Iterable[FloatCoord]
