@@ -904,7 +904,9 @@ class DrivingWorld(SquareContinuousWorld):
         unique_hash = create_unique_hash(
             self.size, self._blocked_coords, self.start_coords, self.dest_coords
         )
-        output_file = pickle_path / f"{unique_hash}.pickle"
+        output_file = (
+            pickle_path / f"{unique_hash}_{int(os.environ['REPLICAS'])}.pickle"
+        )
 
         if output_file.exists() and False:
             return pickle.loads(output_file.read_bytes())
