@@ -926,13 +926,24 @@ class DrivingWorld(SquareContinuousWorld):
                 for j in np.arange(0, self.size, self.continuous_resolution):
                     params_list.append((i, j, d, self.blocked_coords))
 
+        total_len = len(params_list)
+        if "POD_NAME" in os.environ:
+            pod_idx = int(os.environ["POD_NAME"].split("-")[-1])
+            replicas = int(os.environ["REPLICAS"])
+            chunk_size = total_len // replicas
+            start_idx = pod_idx * chunk_size
+            end_idx = total_len if pod_idx + 1 == replicas else start_idx + chunk_size
+        else:
+            start_idx = 0
+            end_idx = len(params_list)
+
         count = os.cpu_count()
         with ThreadPoolExecutor(
             max_workers=((count - 1) if count is not None else 1)
         ) as executor:
             futures = {
                 executor.submit(compute_a_star_continuous, params): params
-                for params in params_list
+                for params in params_list[start_idx:end_idx]
             }
             for future in tqdm(as_completed(futures), total=len(futures)):
                 (i, j), result_value = future.result()
