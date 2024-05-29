@@ -904,7 +904,7 @@ class DrivingWorld(SquareContinuousWorld):
         )
         output_file = (
             pickle_path
-            / f"{unique_hash}_{int(os.environ.get('REPLICAS', '-1'))}.pickle"
+            / f"{unique_hash}_{int(os.environ['POD_NAME'].split('-')[-1])}.pickle"
         )
 
         if output_file.exists() and False:
