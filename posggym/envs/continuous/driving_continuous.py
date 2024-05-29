@@ -905,7 +905,7 @@ class DrivingWorld(SquareContinuousWorld):
             self.size, self._blocked_coords, self.start_coords, self.dest_coords
         )
         output_file = (
-            pickle_path / f"{unique_hash}_{int(os.environ['REPLICAS'])}.pickle"
+            pickle_path / f"{unique_hash}_{int(os.environ.get('REPLICAS', "-1"))}.pickle"
         )
 
         if output_file.exists() and False:
@@ -939,6 +939,8 @@ class DrivingWorld(SquareContinuousWorld):
             start_idx = 0
             end_idx = len(params_list)
 
+        print(f"found {end_idx-start_idx} jobs...")
+
         count = os.cpu_count()
         with ThreadPoolExecutor(
             max_workers=((count - 1) if count is not None else 1)
@@ -947,8 +949,9 @@ class DrivingWorld(SquareContinuousWorld):
                 executor.submit(compute_a_star_continuous, params): params
                 for params in params_list[start_idx:end_idx]
             }
-            for future in tqdm(as_completed(futures), total=len(futures)):
+            for idx, future in tqdm(enumerate(as_completed(futures)), total=len(futures)):
                 (i, j), result_value = future.result()
+                print(idx / len(futures) * 100)
                 d = futures[future][2]  # Retrieve the destination from the params
                 result[d][(i, j)] = result_value[1]
 
