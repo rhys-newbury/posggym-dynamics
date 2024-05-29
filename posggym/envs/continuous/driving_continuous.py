@@ -1234,6 +1234,7 @@ if __name__ == "__main__":
         should_randomize_kin=False,
         num_agents=1,
         control_type=ControlType.WheeledRobot,
+        discrete_progress=False,
     )
 
     run_random(
