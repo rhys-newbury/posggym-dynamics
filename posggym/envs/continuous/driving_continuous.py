@@ -906,7 +906,7 @@ class DrivingWorld(SquareContinuousWorld):
         )
         output_file = pickle_path / f"{unique_hash}.pickle"
 
-        if output_file.exists():
+        if output_file.exists() and False:
             return pickle.loads(output_file.read_bytes())
         logger.warn(
             "Pre-computing distances may take hours, "
@@ -922,8 +922,8 @@ class DrivingWorld(SquareContinuousWorld):
             )
 
         for d in dests:
-            for i in np.arange(0, self.size, 0.5):
-                for j in np.arange(0, self.size, 0.5):
+            for i in np.arange(0, self.size, self.continuous_resolution):
+                for j in np.arange(0, self.size, self.continuous_resolution):
                     params_list.append((i, j, d, self.blocked_coords))
 
         count = os.cpu_count()
