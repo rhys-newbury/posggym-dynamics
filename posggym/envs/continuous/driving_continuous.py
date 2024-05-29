@@ -12,6 +12,7 @@ from typing import (
     Tuple,
     Union,
     cast,
+    Iterable,
 )
 
 import numpy as np
@@ -41,7 +42,14 @@ from posggym.envs.continuous.core import (
     scale_action,
     generate_parameters,
 )
+from posggym.envs.continuous.a_star import a_star_continuous
+from pathlib import Path
 from posggym.utils import seeding
+from tqdm import tqdm
+
+import pickle
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 
 class VehicleState(NamedTuple):
@@ -224,7 +232,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
     def __init__(
         self,
         world: Union[str, "DrivingWorld"] = "14x14RoundAbout",
-        num_agents: int = 2,
+        num_agents: int = 1,
         obs_dist: float = 5.0,
         n_sensors: int = 16,
         obs_self_model: bool = False,
@@ -232,6 +240,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         should_randomize_dyn: bool = False,
         should_randomize_kin: bool = False,
         render_mode: Optional[str] = None,
+        discrete_progress: bool = False,
     ):
         if isinstance(control_type, str):
             try:
@@ -248,6 +257,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 n_sensors,
                 obs_self_model,
                 control_type,
+                discrete_progress,
             ),
             render_mode=render_mode,
             should_randomize_dyn=should_randomize_dyn,
@@ -428,6 +438,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         n_sensors: int,
         obs_self_model: bool,
         control_type: ControlType,
+        discrete_progress: bool,
     ):
         if isinstance(world, str):
             assert world in SUPPORTED_WORLDS, (
@@ -436,7 +447,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             )
             world_info = SUPPORTED_WORLDS[world]
             world = parseworld_str(
-                world_info["world_str"], world_info["supported_num_agents"]
+                world_info["world_str"],
+                world_info["supported_num_agents"],
+                discrete_progress,
             )
         assert 0 < num_agents <= world.supported_num_agents, (
             f"Supplied DrivingWorld `{world}` does not support {num_agents} "
@@ -452,6 +465,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         self.control_type = control_type
         self.dt = 1.0
         self.substeps = 10
+        self.discrete_progress = discrete_progress
 
         self.possible_agents = tuple(str(i) for i in range(num_agents))
         self.state_space = spaces.Tuple(
@@ -605,6 +619,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs = self._get_obs(next_state)
 
         rewards = self._get_rewards(state, next_state, collision_types)
+        print(rewards)
         terminated = {i: any(next_state[int(i)].status) for i in self.possible_agents}
         truncated = {i: False for i in self.possible_agents}
         all_done = all(terminated.values())
@@ -798,8 +813,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         collision_types: List[CollisionType],
     ) -> Dict[str, float]:
         rewards: Dict[str, float] = {}
-        for i in self.possible_agents:
-            idx = int(i)
+        for idx in map(int, self.possible_agents):
             if any(state[idx].status):
                 # already in terminal/rewarded state
                 r_i = 0.0
@@ -812,10 +826,36 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 r_i = self.R_STEP_COST
             progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
 
+            # if progress != 0:
+            #     print("progress", progress)
+
             r_i += max(0, progress) * self.R_PROGRESS
-            rewards[i] = r_i
+            rewards[str(idx)] = r_i
 
         return rewards
+
+
+def create_unique_hash(
+    size: float,
+    blocked_coords: Optional[Set[Coord]],
+    start_coords: List[Set[FloatCoord]],
+    dest_coords: List[Set[FloatCoord]],
+) -> str:
+    import hashlib
+
+    # Convert all data to a string
+    data_str = (
+        f"{size}|"
+        f"{sorted(blocked_coords) if blocked_coords is not None else ''}|"
+        f"{sorted(set.union(*dest_coords))}|"
+        f"{sorted(set.union(*start_coords))}"
+    )
+
+    # Generate a hash from the string
+    hash_object = hashlib.sha256(data_str.encode())
+    unique_hash = hash_object.hexdigest()
+
+    return unique_hash
 
 
 class DrivingWorld(SquareContinuousWorld):
@@ -827,6 +867,7 @@ class DrivingWorld(SquareContinuousWorld):
         blocked_coords: Set[Coord],
         start_coords: List[Set[FloatCoord]],
         dest_coords: List[Set[FloatCoord]],
+        discrete_progress: bool,
     ):
         interior_walls = generate_interior_walls(size, size, blocked_coords)
         super().__init__(
@@ -841,9 +882,58 @@ class DrivingWorld(SquareContinuousWorld):
         self._blocked_coords = blocked_coords
         self.start_coords = start_coords
         self.dest_coords = dest_coords
-        self.shortest_paths = self.get_all_shortest_paths(
-            set.union(*dest_coords)  # type: ignore
+        self.discrete_progress = discrete_progress
+        if discrete_progress:
+            self.shortest_paths = self.get_all_shortest_paths(set.union(*dest_coords))
+        else:
+            self.shortest_paths = self.get_all_continuous(set.union(*dest_coords))
+
+    def get_all_continuous(
+        self, dests: Iterable[FloatCoord]
+    ) -> Dict[Tuple[float, float], Dict[Tuple[float, float], int]]:
+        pickle_path = Path(__file__).resolve().parent / "pickle"
+        pickle_path.mkdir(exist_ok=True)
+
+        unique_hash = create_unique_hash(
+            self.size, self._blocked_coords, self.start_coords, self.dest_coords
         )
+        output_file = pickle_path / f"{unique_hash}.pickle"
+
+        if output_file.exists():
+            return pickle.loads(output_file.read_bytes())
+        logger.warn(
+            "Pre-computing distances may take hours, "
+            "ensure you need to use continuous distances before using"
+        )
+        result = {d: {} for d in dests}
+        params_list = []
+
+        def compute_a_star_continuous(params):
+            i, j, d, blocked_coords = params
+            return (i, j), a_star_continuous((i, j), d, blocked_coords, 0.5, 0.5)
+
+        for d in dests:
+            for i in np.arange(0, self.size, 0.5):
+                for j in np.arange(0, self.size, 0.5):
+                    params_list.append((i, j, d, self.blocked_coords))
+
+        count = os.cpu_count()
+        with ThreadPoolExecutor(
+            max_workers=((count - 1) if count is not None else 1)
+        ) as executor:
+            futures = {
+                executor.submit(compute_a_star_continuous, params): params
+                for params in params_list
+            }
+            for future in tqdm(as_completed(futures), total=len(futures)):
+                (i, j), result_value = future.result()
+                d = futures[future][2]  # Retrieve the destination from the params
+                result[d][(i, j)] = result_value[1]
+
+        with open(output_file, "wb") as output_file:
+            pickle.dump(result, output_file)
+
+        return result
 
     def copy(self) -> "DrivingWorld":
         assert self._blocked_coords is not None
@@ -852,6 +942,7 @@ class DrivingWorld(SquareContinuousWorld):
             blocked_coords=self._blocked_coords,
             start_coords=self.start_coords,
             dest_coords=self.dest_coords,
+            discrete_progress=self.discrete_progress,
         )
         for id, (body, shape) in self.entities.items():
             # make copies of each entity, and ensure the copies are linked correctly
@@ -868,18 +959,27 @@ class DrivingWorld(SquareContinuousWorld):
         """Get the number of agents supported by this world."""
         return len(self.start_coords)
 
-    def get_shortest_path_distance(self, coord: FloatCoord, dest: FloatCoord) -> int:
+    def get_shortest_path_distance(
+        self, coord: FloatCoord, dest: FloatCoord
+    ) -> Union[int, float]:
         """Get the shortest path distance from coord to destination."""
-        coord_c = self.convert_to_coord(coord)
-        dest_c = self.convert_to_coord(dest)
-        return int(self.shortest_paths[dest_c][coord_c])
+        if self.discrete_progress:
+            coord_c = self.convert_to_coord(coord)
+            dest_c = self.convert_to_coord(dest)
+            return int(self.shortest_paths[dest_c][coord_c])
+        else:
+            coord_c = (round(coord[0] * 2) / 2, round(coord[1] * 2) / 2)
+            dest_c = (round(dest[0] * 2) / 2, round(dest[1] * 2) / 2)
+            return self.shortest_paths[dest_c][coord_c]  # type: ignore
 
     def get_max_shortest_path_distance(self) -> int:
         """Get the longest shortest path distance to any destination."""
         return int(max([max(d.values()) for d in self.shortest_paths.values()]))
 
 
-def parseworld_str(world_str: str, supported_num_agents: int) -> DrivingWorld:
+def parseworld_str(
+    world_str: str, supported_num_agents: int, discrete_progress: bool
+) -> DrivingWorld:
     """Parse a str representation of a world.
 
     Notes on world str representation:
@@ -976,6 +1076,7 @@ def parseworld_str(world_str: str, supported_num_agents: int) -> DrivingWorld:
         blocked_coords=blocked_coords,
         start_coords=start_coords,
         dest_coords=dest_coords,
+        discrete_progress=discrete_progress,
     )
 
 
@@ -1111,14 +1212,17 @@ SUPPORTED_WORLDS: Dict[str, Dict[str, Any]] = {
 if __name__ == "__main__":
     from posggym.utils.run_random_agents import run_random
 
+    env = DrivingContinuousEnv(
+        render_mode="human",
+        obs_self_model=True,
+        should_randomize_dyn=True,
+        should_randomize_kin=False,
+        num_agents=1,
+        control_type=ControlType.WheeledRobot,
+    )
+
     run_random(
-        env=DrivingContinuousEnv(
-            render_mode="human",
-            obs_self_model=True,
-            should_randomize_dyn=True,
-            should_randomize_kin=False,
-            control_type=ControlType.WheeledRobot,
-        ),
-        num_episodes=5,
-        max_episode_steps=100,
+        env=env,
+        num_episodes=1,
+        max_episode_steps=1000,
     )
