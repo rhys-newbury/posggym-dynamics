@@ -426,9 +426,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
     """
 
     R_STEP_COST = 0.00
-    R_CRASH_VEHICLE = -1.0
+    R_CRASH_VEHICLE = -5.0
     R_DESTINATION_REACHED = 1.0
-    R_PROGRESS = 0.05
+    R_PROGRESS = 0.25
 
     def __init__(
         self,
@@ -824,7 +824,16 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 r_i = self.R_DESTINATION_REACHED
             else:
                 r_i = self.R_STEP_COST
+
             progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
+
+            print(
+                self.world.get_shortest_path_distance(
+                    (state[idx].body[[0, 1]]),
+                    (state[idx].dest_coord[X_IDX], state[idx].dest_coord[Y_IDX]),
+                ),
+                progress,
+            )
 
             # if progress != 0:
             #     print("progress", progress)
@@ -905,7 +914,8 @@ class DrivingWorld(SquareContinuousWorld):
             self.size, self._blocked_coords, self.start_coords, self.dest_coords
         )
         output_file = (
-            pickle_path / f"{unique_hash}_{int(os.environ.get('REPLICAS', '-1'))}.pickle"
+            pickle_path
+            / f"{unique_hash}_{int(os.environ.get('REPLICAS', '-1'))}.pickle"
         )
 
         if output_file.exists() and False:
@@ -949,7 +959,9 @@ class DrivingWorld(SquareContinuousWorld):
                 executor.submit(compute_a_star_continuous, params): params
                 for params in params_list[start_idx:end_idx]
             }
-            for idx, future in tqdm(enumerate(as_completed(futures)), total=len(futures)):
+            for idx, future in tqdm(
+                enumerate(as_completed(futures)), total=len(futures)
+            ):
                 (i, j), result_value = future.result()
                 print(idx / len(futures) * 100)
                 d = futures[future][2]  # Retrieve the destination from the params
@@ -1250,8 +1262,8 @@ if __name__ == "__main__":
         should_randomize_dyn=True,
         should_randomize_kin=False,
         num_agents=1,
-        control_type=ControlType.WheeledRobot,
-        discrete_progress=False,
+        control_type=ControlType.VelocityHolonomoic,
+        discrete_progress=True,
     )
 
     run_random(
