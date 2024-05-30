@@ -907,7 +907,7 @@ class DrivingWorld(SquareContinuousWorld):
             / f"{unique_hash}_{int(os.environ['POD_NAME'].split('-')[-1])}.pickle"
         )
 
-        if output_file.exists() and False:
+        if output_file.exists():
             return pickle.loads(output_file.read_bytes())
         logger.warn(
             "Pre-computing distances may take hours, "
