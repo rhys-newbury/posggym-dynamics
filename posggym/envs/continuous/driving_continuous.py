@@ -59,6 +59,7 @@ class VehicleState(NamedTuple):
     dest_coord: np.ndarray
     status: np.ndarray
     dest_dist: np.ndarray
+    min_dest_dist: np.ndarray
 
 
 DState = Tuple[VehicleState, ...]
@@ -428,7 +429,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
     R_STEP_COST = 0.00
     R_CRASH_VEHICLE = -5.0
     R_DESTINATION_REACHED = 1.0
-    R_PROGRESS = 0.001
+    R_PROGRESS = 0.05
+    use_min = True
 
     def __init__(
         self,
@@ -602,6 +604,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 dest_coord=dest_coord,
                 status=np.array([int(False), int(False)], dtype=np.int8),
                 dest_dist=np.array([dest_dist], dtype=np.float32),
+                min_dest_dist=np.array([dest_dist], dtype=np.float32),
             )
             state.append(state_i)
 
@@ -737,6 +740,8 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 (state_i.dest_coord[X_IDX], state_i.dest_coord[Y_IDX]),
             )
 
+            min_dest_dist = min(dest_dist, state_i.min_dest_dist[0])
+
             new_state[idx] = VehicleState(
                 body=next_v_body_state,
                 dest_coord=state_i.dest_coord,
@@ -748,6 +753,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                     dtype=np.int8,
                 ),
                 dest_dist=np.array([dest_dist], dtype=np.float32),
+                min_dest_dist=np.array([min_dest_dist], dtype=np.float32),
             )
 
         final_state = [ns for ns in new_state if ns is not None]
@@ -821,7 +827,12 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             else:
                 r_i = self.R_STEP_COST
 
-            progress = (state[idx].dest_dist - next_state[idx].dest_dist)[0]
+            if self.use_min:
+                progress = max(
+                    0, (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
+                )
+            else:
+                progress = (state[idx].dest_dist - next_state[idx].dest_dist)[0]
 
             r_i += progress * self.R_PROGRESS
             rewards[str(idx)] = r_i
