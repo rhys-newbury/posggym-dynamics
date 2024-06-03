@@ -58,7 +58,7 @@ class VehicleState(NamedTuple):
     body: np.ndarray
     dest_coord: np.ndarray
     status: np.ndarray
-    min_dest_dist: np.ndarray
+    dest_dist: np.ndarray
 
 
 DState = Tuple[VehicleState, ...]
@@ -428,7 +428,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
     R_STEP_COST = 0.00
     R_CRASH_VEHICLE = -5.0
     R_DESTINATION_REACHED = 1.0
-    R_PROGRESS = 0.25
+    R_PROGRESS = 0.001
 
     def __init__(
         self,
@@ -601,7 +601,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                 body=body_state,
                 dest_coord=dest_coord,
                 status=np.array([int(False), int(False)], dtype=np.int8),
-                min_dest_dist=np.array([dest_dist], dtype=np.float32),
+                dest_dist=np.array([dest_dist], dtype=np.float32),
             )
             state.append(state_i)
 
@@ -619,7 +619,6 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs = self._get_obs(next_state)
 
         rewards = self._get_rewards(state, next_state, collision_types)
-        print(rewards)
         terminated = {i: any(next_state[int(i)].status) for i in self.possible_agents}
         truncated = {i: False for i in self.possible_agents}
         all_done = all(terminated.values())
@@ -733,12 +732,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
             crashed = crashed or bool(state_i.status[1])
 
-            min_dest_dist = min(
-                state_i.min_dest_dist[0],
-                self.world.get_shortest_path_distance(
-                    (next_v_body_state[X_IDX], next_v_body_state[Y_IDX]),
-                    (state_i.dest_coord[X_IDX], state_i.dest_coord[Y_IDX]),
-                ),
+            dest_dist = self.world.get_shortest_path_distance(
+                (next_v_body_state[X_IDX], next_v_body_state[Y_IDX]),
+                (state_i.dest_coord[X_IDX], state_i.dest_coord[Y_IDX]),
             )
 
             new_state[idx] = VehicleState(
@@ -751,7 +747,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
                     ],
                     dtype=np.int8,
                 ),
-                min_dest_dist=np.array([min_dest_dist], dtype=np.float32),
+                dest_dist=np.array([dest_dist], dtype=np.float32),
             )
 
         final_state = [ns for ns in new_state if ns is not None]
@@ -825,11 +821,11 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             else:
                 r_i = self.R_STEP_COST
 
-            progress = (state[idx].min_dest_dist - next_state[idx].min_dest_dist)[0]
+            progress = (state[idx].dest_dist - next_state[idx].dest_dist)[0]
 
-            r_i += max(0, progress) * self.R_PROGRESS
+            r_i += progress * self.R_PROGRESS
             rewards[str(idx)] = r_i
-
+        print(rewards)
         return rewards
 
 
@@ -902,10 +898,7 @@ class DrivingWorld(SquareContinuousWorld):
         unique_hash = create_unique_hash(
             self.size, self._blocked_coords, self.start_coords, self.dest_coords
         )
-        output_file = (
-            pickle_path
-            / f"{unique_hash}_{int(os.environ['POD_NAME'].split('-')[-1])}.pickle"
-        )
+        output_file = pickle_path / f"{unique_hash}.pickle"
 
         if output_file.exists():
             return pickle.loads(output_file.read_bytes())
@@ -1252,7 +1245,7 @@ if __name__ == "__main__":
         should_randomize_kin=False,
         num_agents=1,
         control_type=ControlType.VelocityHolonomoic,
-        discrete_progress=False,
+        discrete_progress=True,
     )
 
     run_random(
