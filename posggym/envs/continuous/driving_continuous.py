@@ -825,7 +825,6 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
 
             r_i += progress * self.R_PROGRESS
             rewards[str(idx)] = r_i
-        print(rewards)
         return rewards
 
 
