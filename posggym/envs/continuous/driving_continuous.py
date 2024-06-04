@@ -242,6 +242,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
         should_randomize_kin: bool = False,
         render_mode: Optional[str] = None,
         discrete_progress: bool = False,
+        R_PROGRESS: float = 0.05,
     ):
         if isinstance(control_type, str):
             try:
@@ -259,6 +260,7 @@ class DrivingContinuousEnv(DefaultEnv[DState, DObs, DAction]):
                 obs_self_model,
                 control_type,
                 discrete_progress,
+                R_PROGRESS,
             ),
             render_mode=render_mode,
             should_randomize_dyn=should_randomize_dyn,
@@ -441,6 +443,7 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
         obs_self_model: bool,
         control_type: ControlType,
         discrete_progress: bool,
+        R_PROGRESS: Optional[float],
     ):
         if isinstance(world, str):
             assert world in SUPPORTED_WORLDS, (
@@ -458,6 +461,9 @@ class DrivingContinuousModel(M.POSGModel[DState, DObs, DAction]):
             "agents. The supported number of agents is from 1 up to "
             f"{world.supported_num_agents}."
         )
+
+        if R_PROGRESS is not None:
+            self.R_PROGRESS = R_PROGRESS
 
         self.world = world
         self.n_sensors = n_sensors
