@@ -455,10 +455,15 @@ class AbstractContinuousWorld(ABC):
                 global_force = (action_i[0], action_i[1])
                 angle = 0
             case ControlType.WheeledRobot:
-                wheel_radius = kinematic_parameters["wheel_radius"]
+                # wheel_radius = kinematic_parameters["wheel_radius"]
+                # L = kinematic_parameters["L"]
+                # v = wheel_radius / 2 * (action_i[0] + action_i[1])
+                # omega = wheel_radius / L * (action_i[0] - action_i[1])
+                # vel = v * np.array([np.cos(current_ang), np.sin(current_ang)])
+                # angle = current_ang + omega
+                v, phi = action_i
                 L = kinematic_parameters["L"]
-                v = wheel_radius / 2 * (action_i[0] + action_i[1])
-                omega = wheel_radius / L * (action_i[0] - action_i[1])
+                omega = v / L * np.tan(phi)
                 vel = v * np.array([np.cos(current_ang), np.sin(current_ang)])
                 angle = current_ang + omega
             case ControlType.Ackermann:
