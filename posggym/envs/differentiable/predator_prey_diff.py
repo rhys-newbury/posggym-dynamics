@@ -3,7 +3,7 @@ import posggym.model as M
 from vmas.simulator.core import Agent, Landmark, Line, Sphere, World, Box
 import torch
 from vmas.simulator.utils import Color
-from typing import List, Dict, Optional, Union, Tuple, Callable, NamedTuple, cast
+from typing import List, Dict, Optional, Tuple, NamedTuple, cast
 from vmas.simulator.utils import (
     TorchUtils,
     X,
@@ -418,9 +418,8 @@ class PredatorPreyDiffModel(M.POSGModel[PPState, torch.Tensor, torch.Tensor]):
                 # prey stays in same position
                 prey_actions.append(0.0)
                 continue
-            # import pdb; pdb.set_trace()
+
             pred_dists = torch.linalg.norm(prey.pos - pred_states, axis=1)
-            print("pred_dists: ", pred_dists)
 
             min_pred_dist, pred_idx = pred_dists.min(dim=0)
             if min_pred_dist <= self.prey_obs_dist or active_prey == 1:
@@ -433,12 +432,6 @@ class PredatorPreyDiffModel(M.POSGModel[PPState, torch.Tensor, torch.Tensor]):
                 prey_actions.append(angle)
                 continue
 
-            # if active_prey == 1:
-            #     # no other prey to move away from so just move randomly
-            #     angle = self.rng.uniform(0, 2 * math.pi)
-            #     prey_actions.append(angle)
-            #     continue
-
             prey_positions = prey_states
 
             not_current_mask = torch.ones(len(state.prey_states), dtype=torch.bool)
@@ -448,11 +441,9 @@ class PredatorPreyDiffModel(M.POSGModel[PPState, torch.Tensor, torch.Tensor]):
             prey_dists = torch.linalg.norm(
                 prey_positions[not_current_mask] - prey_positions[i], dim=1
             )
-            print("prey_dists: ", prey_dists)
 
             _, other_prey_idx = prey_dists.squeeze().min(dim=0)
 
-            # if min_prey_dist <= self.prey_obs_dist:
             other_prey_state = np.array(list(state.prey_states.values()), dtype=object)[
                 not_current_mask
             ][other_prey_idx]
@@ -462,9 +453,6 @@ class PredatorPreyDiffModel(M.POSGModel[PPState, torch.Tensor, torch.Tensor]):
                 prey.pos_safe[0, 0] - other_prey_state.pos[0, 0],
             )
             prey_actions.append(angle)
-
-            # angle = self.rng.uniform(0, 2 * math.pi)
-            # prey_actions.append(angle)
 
         return torch.stack(prey_actions)
 
@@ -498,12 +486,10 @@ class PredatorPreyDiffModel(M.POSGModel[PPState, torch.Tensor, torch.Tensor]):
                 rew += 0.1 * torch.linalg.vector_norm(
                     agent.state.pos_safe - adv.state.pos, dim=-1
                 )
-                print("rew: ", rew)
         if agent.collide:
             for a in adversaries:
-                pass
-                # print("brrr: ", rew, self.is_collision(a, agent))
-                # rew[self.is_collision(a, agent)] -= 10
+                # pass
+                rew[self.is_collision(a, agent)] -= 10
 
         return rew
 
@@ -648,18 +634,6 @@ class PredatorPrey(DefaultEnv[PPState, PPObs, PPAction]):
         env_index=0,
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Optional[Callable] = None,
-        plot_position_function_precision: float = 0.01,
-        plot_position_function_range: Optional[
-            Union[
-                float,
-                Tuple[float, float],
-                Tuple[Tuple[float, float], Tuple[float, float]],
-            ]
-        ] = None,
-        plot_position_function_cmap_range: Optional[Tuple[float, float]] = None,
-        plot_position_function_cmap_alpha: Optional[float] = 1.0,
-        plot_position_function_cmap_name: Optional[str] = "viridis",
     ):
         """
         Render function for environment using pyglet

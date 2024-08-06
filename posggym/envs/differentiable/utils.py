@@ -48,8 +48,8 @@ def clone_state(state: AgentStateWrapper):
     a_s = AgentStateWrapper()
     t = clone_tensors(state)
     # import  pdb; pdb.set_trace()
-    a_s._batch_dim = t["_batch_dim"]
-    a_s._device = t["_device"]
+    a_s._batch_dim = t["_batch_dim"]  # pyright: ignore
+    a_s._device = t["_device"]  # pyright: ignore
     a_s.pos = t["_pos"]
     a_s.ang_vel = t["_ang_vel"]
     a_s.force = t["_force"]
